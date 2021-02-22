@@ -1,0 +1,228 @@
+---
+title: "Workflow for loading accessible areas"
+author: "Thomas MM.; Tom A."
+date: "2/11/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(sf)
+
+source("/data/notebooks/rstudio-adaptivesampling/scripts/modules/filter_distance.R")
+
+
+```
+
+
+Walkthrough to illustrate the different steps needed to identify accessible areas within X distance from a user. Because of file sizes this isn't a case of simply cropping to a designated area, need to find the UK grid cell that the user is in, load the all the files within those grids and then crop down to the area of interest (AOI).
+
+PROW - coloured by type?
+Greenspaces
+accesspoints
+
+```{r file_locs}
+
+list.files("/data/notebooks/rstudio-constraintlayers/Data/raw_data/")
+
+prow_loc <- ("/data/notebooks/rstudio-constraintlayers/Data/raw_data/rowmaps_footpathbridleway/rowmaps_footpathbridleway/gridded_data")
+
+grnspc_loc <- "/data/notebooks/rstudio-constraintlayers/Data/raw_data/OS_greenspaces/OS Open Greenspace (ESRI Shape File) GB/data/gridded_greenspace_data/"
+
+accspnt_loc <- "/data/notebooks/rstudio-constraintlayers/Data/raw_data/OS_greenspaces/OS Open Greenspace (ESRI Shape File) GB/data/gridded_accesspoint_data/"
+
+```
+
+
+Get UK map, gridded.
+
+```{r uk_map}
+
+# # get grid for UK
+# uk_map <- st_as_sf(getData("GADM", country = "GBR", level = 1))
+# uk_map <- st_transform(uk_map, 27700)
+# uk_grid <- st_make_grid(uk_map, cellsize = 25000, what = 'polygons', square=TRUE)
+# grid_intersect <- apply(st_intersects(uk_grid, uk_map, sparse = FALSE), 1, any)
+# simp_grid_uk2 <- uk_grid[grid_intersect]
+# 
+# plot(st_geometry(uk_map), reset = T)
+# plot(simp_grid_uk2, add = T, border = 'orange')
+# 
+# st_write(uk_map,
+#          dsn = '/data/notebooks/rstudio-constraintlayers/Data/raw_data/uk_map.shp',
+#          driver = "ESRI Shapefile", delete_layer = T)
+# st_write(simp_grid_uk2,
+#          dsn = '/data/notebooks/rstudio-constraintlayers/Data/raw_data/uk_grid_25km.shp',
+#          driver = "ESRI Shapefile", delete_layer = T)
+
+uk <- st_read('/data/notebooks/rstudio-constraintlayers/Data/raw_data/uk_map.shp')
+uk_grid <- st_read('/data/notebooks/rstudio-constraintlayers/Data/raw_data/uk_grid_25km.shp')
+
+st_crs(uk) <- 27700
+st_crs(uk_grid) <- 27700
+
+plot(st_geometry(uk), reset = T)
+plot(st_geometry(uk_grid), add = T, border = 'orange')
+
+```
+
+Get the user's location and the distance they are willing to travel. Use this information to find the grid cells that we need to load in by intersecting the buffered location with the UK grids. This returns the grid number(s) that the location covers.
+
+The location and distance from the user obviously needs to remain the same across all of these functions and the ones for making the recommendations.
+
+```{r user_loc}
+
+# get location and distance
+location = c(-1.110557, 51.602436)
+distance = 5000
+
+# # create buffer
+# dat_sf <- st_sf(st_sfc(st_point(location)), crs = 4326) # load location points, convert to spatial lat/lon
+# trans_loc <- st_transform(dat_sf, crs = 27700) # transform to BNG
+# buffed <- st_buffer(trans_loc, distance) # create a buffer around the point
+# 
+# grid_num <- st_intersects(buffed, uk_grid)[[1]]
+# # grid_num
+
+
+### function to do the same thing
+load_gridnums <- function(location, # location in form long, lat
+                          distance, # distance in metres
+                          grid) { # must be an sf_object
+  
+  # create buffer
+  dat_sf <- st_sf(st_sfc(st_point(location)), crs = 4326) # load location points, convert to spatial lat/lon
+  trans_loc <- st_transform(dat_sf, crs = 27700) # transform to BNG
+  buffed <- st_buffer(trans_loc, distance) # create a buffer around the point
+  
+  # find intersection
+  grid_num <- st_intersects(buffed, grid)[[1]]
+  
+  return(grid_num)
+  
+}
+
+
+grid_nums <- load_gridnums(location, distance, uk_grid)
+grid_nums
+
+```
+
+
+Now need to extract the grid cells of interest for each of the layers, PROW, greenspaces and access points. I have cropped the different accessible layers into their different grids and saved them so can find the grid we want based only on the grid number. I could make this into a function if all the accessible layers were stored in the same folder, because I could filter by the different prefixes. This is quite slow, mainly because of the PROW file. 
+
+The output of the lapply statement is a list of lists. The upper most list contains the different grid cells that the buffered region crosses. Within each grid there is a list of three, one entry for each of PROW, greenspaces and access points. After, these are combined using a do.call(Map) statement to bind the sf data frames together, which means that we are left with a list of three, prow, greenspace and access points across the two grid cells.
+
+```{r load_locs}
+
+system.time(
+  acc_loc <- lapply(c(1:length(grid_nums)), FUN = function(n){
+    
+    # # prow
+    # prow_files <- list.files(prow_loc, 
+    #                          full.names = T,
+    #                          pattern = paste0(grid_nums[n], '.shp'))
+    # 
+    # prow <- sf::st_read(prow_files, quiet = TRUE)
+    # st_crs(prow) <- 27700
+    
+    # prow .rds
+    prow_files <- list.files(prow_loc, 
+                             full.names = T,
+                             pattern = paste0(grid_nums[n], '.rds'))
+    
+    prow <- readRDS(prow_files)
+    st_crs(prow) <- 27700
+    
+    # # greenspaces .shp
+    # grnspc_files <- list.files(grnspc_loc, 
+    #                            full.names = T,
+    #                            pattern = paste0(grid_nums[n], '.shp'))
+    # 
+    # grnspc <- sf::st_read(grnspc_files, quiet = TRUE)
+    # st_crs(grnspc) <- 27700
+   
+    # greenspaces .rds
+    grnspc_files <- list.files(grnspc_loc, 
+                               full.names = T,
+                               pattern = paste0(grid_nums[n], '.rds'))
+    
+    grnspc <- readRDS(grnspc_files)
+    st_crs(grnspc) <- 27700
+    
+    # # access points .shp
+    # accs_files <- list.files(accspnt_loc, 
+    #                          full.names = T,
+    #                          pattern = paste0(grid_nums[n], '.shp'))
+    # 
+    # accs <- sf::st_read(accs_files, quiet = TRUE)
+    # st_crs(accs) <- 27700
+    
+    # access points
+    accs_files <- list.files(accspnt_loc, 
+                             full.names = T,
+                             pattern = paste0(grid_nums[n], '.rds'))
+    
+    accs <- readRDS(accs_files)
+    st_crs(accs) <- 27700
+    
+    return(list(prow, grnspc, accs))
+    
+  })
+)
+
+# combine the grids across the different layers of the list.
+# so, item 1 from list entry 1 combines with item 1 from list entry 2
+all_outs <- do.call(Map, c(rbind, acc_loc))
+
+```
+
+From initial testing it looks as if .rds files actually take longer to read into memory that shapefiles which is interesting. .fst files are only for data frames, so I wonder if it's possible to convert sf objects into data frames and load them in that way... 
+
+Now need to crop the output of the loaded files and plot. These are the layers that will then be superimposed on the SDM metric outputs. I have edited the filter_distance function to accept sf objects automatically - or we can use the filter_accessible_locations() functions that we created for this purpose. It might be simpler to reduce the number of functions and be able to use the same functions across multiple file types when they're doing the same things. 
+
+```{r crop}
+
+# ## function to crop
+# filter_distance(obj = all_outs[[1]],
+#                 location = location,
+#                 distance = distance,
+#                 method = 'buffer')
+
+#####   apply the cropping function to all items of the list 
+final_acc_loc <- lapply(all_outs, filter_distance,
+                        location = location,
+                        distance = distance,
+                        method = 'buffer')
+
+
+# plot all layers on top of each other
+plot_acc_loc <- function(x,
+                         accsp = T){
+  plot(st_geometry(x[[1]]), reset = T)
+  plot(st_geometry(x[[2]]), col = 'green', border = 'green', add = T)
+  if(accsp){
+    plot(st_geometry(x[[3]]), col = 'grey', add = T, pch = 20, cex = 0.8)
+  }
+}
+
+plot_acc_loc(final_acc_loc, accsp = T)
+
+## can plot the prow according to the type of prow 
+plot(final_acc_loc[[1]]['ROW_TYPE'])
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
