@@ -3,7 +3,6 @@
 ## Specific folders
 Data/
 schema/
-!schema/schema.Rmd 
 
 ## specific files
 *.html
