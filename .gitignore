@@ -16,6 +16,7 @@ schema/
 
 # User-specific files
 .Ruserdata
+.Rprofile
 
 # Example code in package build process
 *-Ex.R
@@ -46,4 +47,4 @@ vignettes/*.pdf
 
 # R Environment Variables
 .Renviron
-packrat/lib*/
+packrat
