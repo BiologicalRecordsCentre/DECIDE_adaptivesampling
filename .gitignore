@@ -2,6 +2,10 @@
 
 ## Specific folders
 Data/
+schema/
+
+## specific files
+*.html
 
 # History files
 .Rhistory
@@ -42,3 +46,4 @@ vignettes/*.pdf
 
 # R Environment Variables
 .Renviron
+packrat/lib*/
