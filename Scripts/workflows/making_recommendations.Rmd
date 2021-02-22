@@ -1,0 +1,360 @@
+---
+title: "Workflow for making recommendations"
+author: "Thomas MM.; Tom A."
+date: "2/3/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+
+library(raster)
+library(sf)
+library(dismo)
+library(tidyverse) # this is a very old version even though newer version is on CRAN...
+library(reshape2)
+
+## load the functions
+source("/data/notebooks/rstudio-adaptivesampling/scripts/modules/filter_distance.R")
+source("/data/notebooks/rstudio-adaptivesampling/scripts/modules/recommend_rank.R")
+source("/data/notebooks/rstudio-adaptivesampling/scripts/modules/recommend_metric.R")
+source("/data/notebooks/rstudio-adaptivesampling/scripts/modules/recommend_agg_rank.R")
+
+
+```
+
+We're going to run through the process of making recommendations to users based on their location. There are few things that need working out, including the function names and how to incorporate the outputs from multiple different models for each species. Currently, this only works on random forest models for a subset of species that I could easily download. This markdown document will be updated as and when the functions get updated. The general proces will be as follows:
+
+1. Load in data
+
+This will change depending on how the models are stored etc.
+
+2. Crop all species to a location, main function = filter_distance()
+
+Probably need to create a wrapper function to be able to automatically crop the different models for different species
+
+3. Create a metric, function = recommend_metric()
+
+Very simple at the moment, but will be an eventual 'DECIDE score' as Michael put it.
+
+4. Get the rank of cells to be visited, recommend_aggregate()
+
+This is the most complicated function at the moment. It creates a ranking for all of the cells within the area of interest. It can do it across all species or for each species separately.
+
+5. Get a summed rank from the ranks of all individual species, function = recommend_agg_rank()
+
+Very simple function to get the sum of ranks across multiple different species.
+
+
+
+# 1. Load in the data
+
+The data are currently stored as .rdata files, not sure how they'll be stored for the app. So this just reads them in, in turn.
+
+```{r load_data}
+
+# load in the model outputs for each species in turn
+# store them as a list and the species names as a list too
+# easier to get the names in the for loop to name the different entries
+
+all_spp <- list()
+all_spp_name <- c()
+
+# file list
+files_list <- list.files('/data/notebooks/rstudio-constraintlayers/Data/raw_data/subset_species_ranfor_29_01_21/',
+                         full.names = T)
+
+system.time(
+  for(i in 1:length(files_list)){
+    
+    # load
+    load(files_list[i])
+    
+    # store sdm output file
+    all_spp[[i]] <- all_mods
+    
+    # store names
+    all_spp_name[i] <- as.character(all_mods[[1]]$sdm_output$Species)
+    
+  }
+)
+
+# name the list the names of each species
+names(all_spp) <- all_spp_name
+
+```
+
+
+Just want to check that the files loaded, so will plot some of the predictions.
+
+
+```{r plot_zyg.loti}
+
+# plot Zygaena loti
+par(mfrow = c(1,2))
+plot(all_spp[[7]]$rf$sdm_output$Predictions, main = all_spp[[7]]$rf$sdm_output$Species)
+plot(all_spp[[7]]$rf$quantile_range, main = paste(all_spp[[7]]$rf$sdm_output$Species, '95% quantile range'))
+par(mfrow = c(1,1))
+
+plot(all_spp[[5]]$rf$sdm_output$Predictions, main = all_spp[[5]]$rf$sdm_output$Species)
+plot(all_spp[[5]]$rf$quantile_range, main = paste(all_spp[[5]]$rf$sdm_output$Species, '95% quantile range'))
+
+
+```
+
+Try plotting more of the species, plotting all of them crashes the notebook.
+
+```{r plot_all}
+
+
+par(mfrow = c(1,2))
+
+for(p in c(1:4)){#}, 6:length(all_spp))){
+  
+  plot(all_spp[[p]]$rf$sdm_output$Predictions, main = all_spp[[p]]$rf$sdm_output$Species)
+  plot(all_spp[[p]]$rf$quantile_range, main = paste(all_spp[[p]]$rf$sdm_output$Species, '95% quantile range'))
+  
+}
+
+par(mfrow = c(1,1))
+
+
+```
+
+
+# 2. Crop all species to a location
+
+Going to crop the rasters to 2000m around Wallingford. This is currently a for loop, but would be easy to change into a wrapper function for it to look a bit nicer. The input variables would be location, distance, a list of species, and the prediction and error raster layers for each species. Would be a lapply() statement (I think).
+
+All this does is crop the prediction layer and the bootstrapped variation layer around Wallingford.
+
+```{r filt_dist}
+
+location = c(-1.110557, 51.602436)
+distance = 2000
+
+crop_ls_pred <- list()
+crop_ls_err <- list()
+
+par(mfrow = c(2,2))
+
+for(j in 1:length(all_spp)) {
+  
+  # crop the predictions
+  crop_pred <- filter_distance(obj = all_spp[[j]]$rf$sdm_output$Predictions,
+                               method = 'buffer',
+                               distance = distance,
+                               location = location)
+  names(crop_pred) <- 'predictions'
+  
+  # crop the error
+  crop_err <- filter_distance(obj = all_spp[[j]]$rf$quantile_range,
+                              method = 'buffer',
+                              distance = distance,
+                              location = location)
+  names(crop_err) <- 'error'
+  
+  # plot the predictions and error
+  plot(crop_pred, main = all_spp[[j]]$rf$sdm_output$Species)
+  plot(crop_err, main = 'Bootstrapped error')
+  
+  # store everything in lists
+  crop_ls_pred[[j]] <- crop_pred
+  crop_ls_err[[j]] <- crop_err
+  
+}
+
+par(mfrow = c(1,1))
+
+
+```
+
+Stack the output rasters from the for loop.
+
+```{r stack_rasts}
+
+# name the different entries in the list as the species they are
+names(crop_ls_pred) <- all_spp_name
+names(crop_ls_err) <- all_spp_name
+
+# stack the predictions and error
+pred <- raster::stack(crop_ls_pred)
+err <- raster::stack(crop_ls_err)
+# plot(pred)
+# plot(err)
+
+```
+
+
+# 3. Create a metric
+
+Create a metric to decide which cells to visit. Extremely simple addition or multiplication of predictions and error layers for the moment but we can easily add other methods to this function. Michael and WP3 have suggested the idea of a 'DECIDE score' which will be based on various SDM layers.
+
+Use the recommend_metric() function get the sum of the prediction and error rasters. It returns a named list so can use multiple metrics if we want to at a later date. 
+
+
+```{r metric_creation}
+
+additive_metric <- recommend_metric(prediction_raster = pred,
+                                    error_raster = err,
+                                    method = 'additive')$additive
+additive_metric
+
+```
+
+# 4. Get the rank of cells to be visited
+
+Get the rank of cells across all species using the recommend_rank() function. Has two options, 'additive' which sums the predictions and error raster for each species together and then ranks them according to the highest values. Returns a raster stack of the original metric and the ranking of the cells. And another, 'species_rank', which ranks all the species separately and returns a raster stack of the original metric and the ranking of the cells for each species.
+
+It might be worth changing this function to be able to return multiple ranking methods.
+
+## Additive
+
+The code throws a warning about no non-missing arguments when run in the function below, but I can't recreate it in the function file itself. it only has this warning in the R Markdown document, doesn't even appear if I copy the code to a normal R script. It's something to do with the raster creation as the warning is multiplied when doing the 'specis_rank' side of the function.
+
+**This is point 1 in the Teams document**
+
+
+```{r sum_rank}
+
+# aggregated rank across all species output = 2 rasters, original metric and inverse rank of cells metric 
+agg_rank <- recommend_rank(predict_err_raster = additive_metric,
+                           method = 'additive')
+plot(agg_rank)
+
+```
+
+## 'species_rank' method
+
+Get the rank of cells for each species separately and plot one example species, *Archiearis.parthenias*.
+
+**This is point 2 in the Teams document**
+
+```{r species_rank}
+
+# rank for each species output = 2 rasters for each species, original metric and inverse rank of cells metric 
+species_rank <- recommend_rank(additive_metric,
+                               method = 'species_rank')
+
+plot(species_rank$Archiearis.parthenias)
+
+par(mfrow = c(1, 2))
+plot(pred$Archiearis.parthenias, main = paste(names(pred[[1]]), 'probability of presence'))
+plot(species_rank$Archiearis.parthenias[[2]], main = 'ranked cells')
+par(mfrow = c(1, 1))
+
+
+```
+
+
+
+# 5. Sum the ranks of all the seperate species
+
+After the method to get the ranks of each species separately, another function to sum the rank layer for each species. This looks different to the ranks generated by first adding all the species together as that method will favour species that have a higher probability of presence in the area of interest. Summing the ranks of each species will put an equal weight on all species, regardless of their probability of presence in the area of interest. This might not make sense in some cases. For example, *Zygaena loti* has an extremely low probability of presence in the area around Wallingford, but in the second method its cells will 'equal' to those of other species.
+
+
+**This is point 3 in the Teams document**
+
+
+```{r sum_ranks_spp}
+
+summed_rank_all_spp <- recommend_agg_rank(species_rank)
+plot(summed_rank_all_spp)
+
+```
+
+
+# Further steps
+
+Using the output of each species separately, we could investigate differences between species in the probability and error distributions within the area of interest. This could be useful to identify species that we are particularly uncertain about in a given area/those which are particularly likely to occur - This could be a set of 'single species recommendations', ('recommend_species()' maybe?).
+
+After this point in the recommend proces we could then get the bridleways/greenspaces etc. using the other functions and then combine them into a single output for display.
+
+
+```{r, exit_early}
+
+knitr::knit_exit()
+
+```
+
+
+## identifying species outliers
+
+It could be interesting to identify outlying species for each cropped region so that we could filter out species that don't have a high probability of presence or that have extremely high variation in a particular area. To be continued...
+
+
+```{r outliers}
+
+# 
+# rast = species_rank
+# var = 'metric'
+# 
+# stack_metric_rank <- function(rast,
+#                               var) { # var = metric, rank
+#   
+#   num <- ifelse(var == 'metric', 1, 
+#                 ifelse(var == 'rank', 2, 
+#                        stop("'var must be one of 'metric' or 'rank''")))
+#   
+#   rst_nms <- names(rast)
+#   
+#   ranks <- stack(lapply(rst_nms, FUN = function(x){rast[[x]][[num]]})) # needs to be the second layer in the raster because the first is the metric
+#   
+#   names(ranks) <- rst_nms
+#   
+#   return(ranks) # could it be useful to use different functions here? I.e. standard deviation? does the standard deviation of the rank make any sense?
+#   
+# }
+# 
+# error_met_spp <- stack_metric_rank(species_rank, var = 'metric')
+
+## additive metric is just the different species' metric of prob + variation.
+names(additive_metric)
+names(pred)
+
+ererror_met_spp <- additive_metric
+
+plot(error_met_spp)
+
+hist(error_met_spp)
+quantile(error_met_spp, probs = c(0, 0.05, 0.5, 0.95, 1))
+hist(pred)
+
+d[[1]]$counts
+
+# convert error to data frame
+er_df <- as.data.frame(error_met_spp, long = T, xy = T)
+head(er_df)
+
+# qet quantiles
+q <- quantile(error_met_spp, probs = c(0, 0.05, 0.5, 0.95, 1))
+
+data.frame(q) %>% rownames_to_column(var = 'species') %>% arrange(-X95.)
+
+
+
+er_df %>% group_by(layer) %>% quantile(na.rm = T)
+t <- combn(unique(er_df$layer), 2, simplify = F)
+t[[1]][2]
+
+?combn
+summary(lm(value~layer-1, data = er_df))
+
+pr_df <- as.data.frame(pred, long = T, xy = T)
+summary(lm(value~layer, data = pr_df))
+
+
+
+ggplot(er_df[er_df$layer!='Zygaena.loti',],aes(x = value, fill = layer)) +
+  geom_density() #+
+facet_grid(~layer, scales = 'free_y')
+
+?geom_density
+
+
+```
+
+
+
+

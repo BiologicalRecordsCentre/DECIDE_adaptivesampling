@@ -2,6 +2,10 @@
 
 ## Specific folders
 Data/
+schema/
+
+## specific files
+*.html
 
 # History files
 .Rhistory
@@ -12,6 +16,7 @@ Data/
 
 # User-specific files
 .Ruserdata
+.Rprofile
 
 # Example code in package build process
 *-Ex.R
@@ -42,3 +47,4 @@ vignettes/*.pdf
 
 # R Environment Variables
 .Renviron
+packrat
