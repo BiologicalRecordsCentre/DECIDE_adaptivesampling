@@ -16,10 +16,10 @@ library(tidyverse) # this is a very old version even though newer version is on 
 library(reshape2)
 
 ## load the functions
-source("/data/notebooks/rstudio-adaptivesampling/scripts/modules/filter_distance.R")
-source("/data/notebooks/rstudio-adaptivesampling/scripts/modules/recommend_rank.R")
-source("/data/notebooks/rstudio-adaptivesampling/scripts/modules/recommend_metric.R")
-source("/data/notebooks/rstudio-adaptivesampling/scripts/modules/recommend_agg_rank.R")
+source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/modules/filter_distance.R")
+source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/modules/recommend_rank.R")
+source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/modules/recommend_metric.R")
+source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/modules/recommend_agg_rank.R")
 
 
 ```
