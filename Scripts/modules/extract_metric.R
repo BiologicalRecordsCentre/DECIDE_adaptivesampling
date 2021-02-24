@@ -5,6 +5,7 @@ library(stars)
 library(sf)
 library(lwgeom)
 library(viridis)
+library(plotly)
 
 # greenspace/prow files
 # prow
@@ -111,9 +112,9 @@ ggplot() +
 
 # crop sf object to region of interest
 accs <- filter_distance(obj = final_acc_loc[[2]],
-                       # location = location,
-                       distance = 2000,
-                       method = 'buffer')
+                        # location = location,
+                        distance = 2000,
+                        method = 'buffer')
 plot(st_geometry(accs), col = 'green') # all good
 
 ## convert raster uncertainty layer to an sf object (same as above)
@@ -121,57 +122,98 @@ stars_rast <- st_as_stars(agg_rank$error_metric)
 sm_gr <- st_as_sf(stars_rast, as_points = FALSE, merge = FALSE)
 st_crs(sm_gr) <- 27700
 
+# get the cells that the accessible areas cross
+accs_intersect <- apply(st_intersects(sm_gr, accs, sparse = FALSE), 1, any)
 
+# plot - yes kind of makes sense
+ggplot() +
+  geom_sf(data = sm_gr[accs_intersect,], aes(fill = error_metric)) +
+  geom_sf(data = accs) +
+  scale_fill_viridis(option = 'B') +
+  coord_sf(datum = sf::st_crs(27700))
+
+
+
+#### try and crop the accessible area file
+
+# first get the intersected files
+er_accs_int <- sm_gr[accs_intersect,]
+plot(er_accs_int)
+
+test_crop <- st_crop(accs, st_bbox(er_accs_int[1,]))
+plot(st_geometry(test_crop))
+
+cropped_accs <- vector("list", length = length(er_accs_int[[2]]))
+
+# loop
+for(i in 1:length(er_accs_int[[2]])) {
+  
+  loop_crop <- st_crop(accs, st_bbox(er_accs_int[i,]))
+  cropped_accs[[i]] <- loop_crop
+  
+}
+
+
+# combine all
+crp_accs <- do.call('rbind', cropped_accs) # takes AGES
+plot(st_geometry(crp_accs)) ## looks okay
+crp_accs
+
+# join error_metric and cropped prow
+crp_accs_err <- st_join(crp_accs, sm_gr,
+                        largest = FALSE,
+                        join = st_within) ## st_within is the argument to use!
+
+ggplot() +
+  geom_sf(data = sm_gr, aes(fill = error_metric)) +
+  geom_sf(data = crp_accs_err, aes(fill = error_metric), colour = 'white') +
+  scale_fill_viridis(option = 'B') +
+  scale_colour_viridis(option = 'B') +
+  coord_sf(datum = sf::st_crs(27700)) +
+  theme_bw()
 
 
 #######     Creating a function to do this     #######
 
-extract_metric <- function(metric, shape_obj){
+extract_metric <- function(metric, 
+                           shape_obj){
   
   print('#####     cropping     #####')
   # crop the shape object to the grid of the metric
   # maybe parallelize??
-  cropped_prw <- lapply(c(1:length(metric[[2]])), FUN = function(x){
+  cropped <- lapply(c(1:length(metric[[2]])), FUN = function(x){
     loop_crop <- st_crop(shape_obj, st_bbox(metric[x,]))
     return(loop_crop)
   })
   
   # combine all
   print('#####     joining     #####')
-  crp_prw <- do.call('rbind', cropped_prw) # takes a while
+  crp_comb <- do.call('rbind', cropped) # takes a while
   
   # join error_metric and cropped prow
-  crp_prw_err <- st_join(crp_prw, metric,
-                         largest = FALSE,
-                         join = st_within)
+  crp_err <- st_join(crp_comb, metric,
+                     largest = FALSE,
+                     join = st_within)
   
-  return(crp_prw_err)
+  return(crp_err)
 }
 
+
+## This works with linestring object 
 system.time(
   ex_t <- extract_metric(metric = sm_gr, shape_obj = prw)
 ) ## takes a while
 
-cropped_prw <- vector("list", length = length(sm_gr[[2]]))
+system.time(
+  ex_access <- extract_metric(metric = sm_gr, shape_obj = accs)
+) 
 
-# loop
-for(i in 1:length(sm_gr[[2]])) {
-  
-  loop_crop <- st_crop(prw, st_bbox(sm_gr[i,]))
-  cropped_prw[[i]] <- loop_crop
-  
-}
 
-# that worked
-plot(cropped_prw[[5]])
-
-# combine all
-crp_prw <- do.call('rbind', cropped_prw) # takes AGES
-plot(st_geometry(crp_prw)) ## looks okay
-crp_prw
-
-# join error_metric and cropped prow
-crp_prw_err <- st_join(crp_prw, sm_gr,
-                       largest = FALSE,
-                       join = st_within) ## st_within is the argument to use!
-
+ggplot() +
+  # geom_sf(data = sm_gr, aes(fill = error_metric), show.legend = F) +
+  geom_sf(data = ex_t, aes(colour = error_metric)) +
+  geom_sf(data = ex_access, aes(fill = error_metric), show.legend = F) +
+  scale_fill_viridis(option = 'B') +
+  scale_colour_viridis(option = 'B') +
+  coord_sf(datum = sf::st_crs(27700)) +
+  theme_bw()
