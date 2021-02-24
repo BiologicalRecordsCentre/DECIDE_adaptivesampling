@@ -97,9 +97,10 @@ plot(all_spp[[7]]$rf$sdm_output$Predictions, main = all_spp[[7]]$rf$sdm_output$S
 plot(all_spp[[7]]$rf$quantile_range, main = paste(all_spp[[7]]$rf$sdm_output$Species, '95% quantile range'))
 par(mfrow = c(1,1))
 
+par(mfrow = c(1,2))
 plot(all_spp[[5]]$rf$sdm_output$Predictions, main = all_spp[[5]]$rf$sdm_output$Species)
 plot(all_spp[[5]]$rf$quantile_range, main = paste(all_spp[[5]]$rf$sdm_output$Species, '95% quantile range'))
-
+par(mfrow = c(1,1))
 
 ```
 
@@ -110,7 +111,7 @@ Try plotting more of the species, plotting all of them crashes the notebook.
 
 par(mfrow = c(1,2))
 
-for(p in c(1:4)){#}, 6:length(all_spp))){
+for(p in c(1:3)){#}, 6:length(all_spp))){
   
   plot(all_spp[[p]]$rf$sdm_output$Predictions, main = all_spp[[p]]$rf$sdm_output$Species)
   plot(all_spp[[p]]$rf$quantile_range, main = paste(all_spp[[p]]$rf$sdm_output$Species, '95% quantile range'))

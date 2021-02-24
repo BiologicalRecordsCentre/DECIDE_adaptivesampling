@@ -39,24 +39,24 @@ Get UK map, gridded.
 
 ```{r uk_map}
 
-# get grid for UK
-uk_map <- st_as_sf(getData("GADM", country = "GBR", 
-                           level = 1, 
-                           path ='/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/UK_grids'))
-uk_map <- st_transform(uk_map, 27700)
-uk_grid <- st_make_grid(uk_map, cellsize = 25000, what = 'polygons', square=TRUE)
-grid_intersect <- apply(st_intersects(uk_grid, uk_map, sparse = FALSE), 1, any)
-simp_grid_uk2 <- uk_grid[grid_intersect]
-
-plot(st_geometry(uk_map), reset = T)
-plot(simp_grid_uk2, add = T, border = 'orange')
-
-st_write(uk_map,
-         dsn = '/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/UK_grids/uk_map.shp',
-         driver = "ESRI Shapefile", delete_layer = T)
-st_write(simp_grid_uk2,
-         dsn = '/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/UK_grids/uk_grid_25km.shp',
-         driver = "ESRI Shapefile", delete_layer = T)
+# # get grid for UK
+# uk_map <- st_as_sf(getData("GADM", country = "GBR",
+#                            level = 1,
+#                            path ='/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/UK_grids'))
+# uk_map <- st_transform(uk_map, 27700)
+# uk_grid <- st_make_grid(uk_map, cellsize = 50000, what = 'polygons', square=TRUE)
+# grid_intersect <- apply(st_intersects(uk_grid, uk_map, sparse = FALSE), 1, any)
+# simp_grid_uk2 <- uk_grid[grid_intersect,]
+# 
+# plot(st_geometry(uk_map), reset = T)
+# plot(st_geometry(simp_grid_uk2), add = T, border = 'orange')
+# 
+# st_write(uk_map,
+#          dsn = '/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/UK_grids/uk_map.shp',
+#          driver = "ESRI Shapefile", delete_layer = T)
+# st_write(simp_grid_uk2,
+#          dsn = '/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/UK_grids/uk_grid_50km.shp',
+#          driver = "ESRI Shapefile", delete_layer = T)
 
 uk <- st_read('/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/UK_grids/uk_map.shp')
 uk_grid <- st_read('/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/UK_grids/uk_grid_25km.shp')
@@ -91,7 +91,7 @@ distance = 5000
 ### function to do the same thing
 load_gridnums <- function(location, # location in form long, lat
                           distance, # distance in metres
-                          grid) { # must be an sf_object
+                          grid) { # must be an sf_object - can be different grid sizes
   
   # create buffer
   dat_sf <- st_sf(st_sfc(st_point(location)), crs = 4326) # load location points, convert to spatial lat/lon
