@@ -10,7 +10,9 @@ knitr::opts_chunk$set(echo = TRUE)
 
 library(sf)
 
+
 source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/modules/filter_distance.R")
+
 
 
 ```
@@ -24,6 +26,7 @@ accesspoints
 
 ```{r file_locs}
 
+
 list.files("/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/")
 
 prow_loc <- ("/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/rowmaps_footpathbridleway/rowmaps_footpathbridleway/gridded_data")
@@ -31,6 +34,7 @@ prow_loc <- ("/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Da
 grnspc_loc <- "/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/OS_greenspaces/OS Open Greenspace (ESRI Shape File) GB/data/gridded_greenspace_data/"
 
 accspnt_loc <- "/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/OS_greenspaces/OS Open Greenspace (ESRI Shape File) GB/data/gridded_accesspoint_data/"
+
 
 ```
 
@@ -40,6 +44,7 @@ Get UK map, gridded.
 ```{r uk_map}
 
 # # get grid for UK
+
 # uk_map <- st_as_sf(getData("GADM", country = "GBR",
 #                            level = 1,
 #                            path ='/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/UK_grids'))
@@ -60,6 +65,7 @@ Get UK map, gridded.
 
 uk <- st_read('/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/UK_grids/uk_map.shp')
 uk_grid <- st_read('/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/UK_grids/uk_grid_25km.shp')
+
 
 st_crs(uk) <- 27700
 st_crs(uk_grid) <- 27700
@@ -92,6 +98,7 @@ distance = 5000
 load_gridnums <- function(location, # location in form long, lat
                           distance, # distance in metres
                           grid) { # must be an sf_object - can be different grid sizes
+
   
   # create buffer
   dat_sf <- st_sf(st_sfc(st_point(location)), crs = 4326) # load location points, convert to spatial lat/lon
@@ -181,6 +188,7 @@ all_outs <- do.call(Map, c(rbind, acc_loc))
 ```
 
 From initial testing it looks as if .rds files actually take longer to read into memory that shapefiles with st_read() which is interesting. .fst files are only for data frames, so I wonder if it's possible to convert sf objects into data frames and load them in that way... 
+
 
 Now need to crop the output of the loaded files and plot. These are the layers that will then be superimposed on the SDM metric outputs. I have edited the filter_distance function to accept sf objects automatically - or we can use the filter_accessible_locations() functions that we created for this purpose. It might be simpler to reduce the number of functions and be able to use the same functions across multiple file types when they're doing the same things. 
 

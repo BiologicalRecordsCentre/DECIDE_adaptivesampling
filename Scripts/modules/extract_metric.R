@@ -1,4 +1,5 @@
 
+
 #  Combine the error metric layer with Accessible areas/PROW files
 #  extract the error metric into the various other layers
 # 
@@ -8,6 +9,7 @@
 # 
 # _Metadata_:
 # 
+
 
 ### Overlaying SDMs and shapes
 
@@ -73,6 +75,10 @@ st_crs(sm_gr) <- 27700
 plot(st_geometry(final_acc_loc[[1]])) ## prow
 
 # crop to match area that we were interested from the raster
+# greenspace/prow files
+# prow
+plot(st_geometry(final_acc_loc[[1]]))
+
 prw <- filter_distance(obj = final_acc_loc[[1]],
                        # location = location,
                        distance = 2000,
@@ -260,3 +266,10 @@ ggplot() +
   scale_colour_viridis(option = 'B') +
   coord_sf(datum = sf::st_crs(27700)) +
   theme_bw()
+
+# example sdm metric
+plot(agg_rank$error_metric)
+plot(st_geometry(prw), add = T)
+
+
+

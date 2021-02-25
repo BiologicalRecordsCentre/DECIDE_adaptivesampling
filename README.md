@@ -1,5 +1,3 @@
 # DECIDE_adaptivesampling
 
-This is a testing line from RStudio
-
-Line added from github
+Modules to convert SDM outputs and constraint layers into usable outputs for recorders on the DECIDE project.
