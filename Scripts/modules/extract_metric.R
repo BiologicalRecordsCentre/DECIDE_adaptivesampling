@@ -29,7 +29,7 @@ extract_metric <- function(metric,
   # first get the intersected boxes to reduce processing time
   intersects <- apply(st_intersects(metric, shape_obj, sparse = FALSE), 1, any)
   intersected_metric <- metric[intersects,]
-
+  
   print('#####     cropping     #####')
   # crop the shape object to the grid of the metric
   # maybe parallelize??
@@ -53,6 +53,100 @@ extract_metric <- function(metric,
 
 
 ###############       Development/testing below
+
+
+#######    quick testing testing the function     #######
+
+# convert raster to an sf object
+# convert to its own function?
+stars_rast <- st_as_stars(agg_rank$error_metric) # only interested in the error metric
+sm_gr <- st_as_sf(stars_rast, as_points = FALSE, merge = FALSE)
+st_crs(sm_gr) <- 27700
+
+# crop PROW
+prw <- filter_distance(obj = final_acc_loc[[1]],
+                       # location = location,
+                       distance = 2000,
+                       method = 'buffer')
+
+# crop accessible layers
+accs <- filter_distance(obj = final_acc_loc[[2]],
+                        # location = location,
+                        distance = 2000,
+                        method = 'buffer')
+
+
+## This works with linestring object 
+system.time(
+  ex_prw <- extract_metric(metric = sm_gr, shape_obj = prw)
+) ## takes a long time
+
+system.time(
+  ex_access <- extract_metric(metric = sm_gr, shape_obj = accs)
+)
+
+
+comb_p <- ggplot() +
+  geom_sf(data = sm_gr, aes(fill = error_metric), 
+          show.legend = F, 
+          alpha = 0.4,
+          colour = 'white') +
+  geom_sf(data = ex_prw, aes(colour = error_metric)) +
+  geom_sf(data = ex_access, aes(fill = error_metric), show.legend = F) +
+  scale_fill_viridis(option = 'B') +
+  scale_colour_viridis(option = 'B') +
+  coord_sf(datum = sf::st_crs(27700)) +
+  theme_bw()
+comb_p
+
+ggsave(plot = comb_p,
+       filename = 'outputs/error_metric_combplot.tiff',
+       height = 5, width = 6)
+
+##  combined plot
+library(patchwork)
+
+p1 <- ggplot() +
+  geom_sf(data = sm_gr, aes(fill = error_metric), show.legend = F) +
+  # geom_sf(data = ex_prw, aes(colour = error_metric)) +
+  # geom_sf(data = ex_access, aes(fill = error_metric), show.legend = F) +
+  scale_fill_viridis(option = 'B') +
+  scale_colour_viridis(option = 'B') +
+  coord_sf(datum = sf::st_crs(27700)) +
+  ylim(c(187500, 191750)) +
+  xlim(c(459500, 464000)) +
+  theme_bw()
+
+p2 <- ggplot() +
+  # geom_sf(data = sm_gr, aes(fill = error_metric), show.legend = F) +
+  geom_sf(data = ex_prw, aes(colour = error_metric), show.legend = F) +
+  # geom_sf(data = ex_access, aes(fill = error_metric), show.legend = F) +
+  scale_fill_viridis(option = 'B') +
+  scale_colour_viridis(option = 'B') +
+  coord_sf(datum = sf::st_crs(27700)) +
+  ylim(c(187500, 191750)) +
+  xlim(c(459500, 464000)) +
+  theme_bw()
+
+p3 <- ggplot() +
+  # geom_sf(data = sm_gr, aes(fill = error_metric), show.legend = F) +
+  # geom_sf(data = ex_prw, aes(colour = error_metric)) +
+  geom_sf(data = ex_access, aes(fill = error_metric), show.legend = TRUE) +
+  scale_fill_viridis(option = 'B') +
+  scale_colour_viridis(option = 'B') +
+  coord_sf(datum = sf::st_crs(27700)) +
+  ylim(c(187500, 191750)) +
+  xlim(c(459500, 464000)) +
+  theme_bw()
+
+p2save <- p1 + p2 + p3 + 
+  plot_layout(guides = 'collect')
+p2save
+
+ggsave(plot = p2save,
+       filename = 'outputs/error_metric_egplot.tiff',
+       height = 5, width = 15)
+
 
 ## First get the error metric raster from the 'making_recommendations' workflow
 # need to convert this raster layer to an sf object because
@@ -244,28 +338,6 @@ ggplot() +
   theme_bw()
 
 
-#######     Creating a function to do this     #######
-
-
-
-## This works with linestring object 
-system.time(
-  ex_t <- extract_metric(metric = sm_gr, shape_obj = prw)
-) ## takes a while
-
-system.time(
-  ex_access <- extract_metric(metric = sm_gr, shape_obj = accs)
-) 
-
-
-ggplot() +
-  # geom_sf(data = sm_gr, aes(fill = error_metric), show.legend = F) +
-  geom_sf(data = ex_t, aes(colour = error_metric)) +
-  geom_sf(data = ex_access, aes(fill = error_metric), show.legend = F) +
-  scale_fill_viridis(option = 'B') +
-  scale_colour_viridis(option = 'B') +
-  coord_sf(datum = sf::st_crs(27700)) +
-  theme_bw()
 
 # example sdm metric
 plot(agg_rank$error_metric)

@@ -3,6 +3,7 @@
 ## Specific folders
 Data/
 schema/
+Scripts/workflows/find_accessible_areas_files/
 
 ## specific files
 *.html
