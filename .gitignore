@@ -4,6 +4,7 @@
 Data/
 schema/
 Scripts/workflows/find_accessible_areas_files/
+outputs/
 
 ## specific files
 *.html
