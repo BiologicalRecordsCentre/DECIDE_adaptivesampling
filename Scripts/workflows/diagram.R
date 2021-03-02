@@ -8,25 +8,52 @@ DiagrammeR::grViz("
 digraph boxes {
 
 graph [layout = dot]
-node [shape = rectangle, style = filled, fillcolor = Linen]
 
-loc [label = 'User location + \n distance to travel']
-access [label = 'Filter accessible areas']
-sdm [label = 'Process SDMs + \n create metric']
-combin [label = 'Overlay access \n and variation', shape = box]
-filt [label = 'Filter user \n preferences', shape = box]
-fin [label = 'Final nudge', shape = box]
-feed [label = 'Feedback for \n future nudges']
+node [color = 'white']
 
-loc -> filt -> {access sdm} -> combin -> fin 
-fin -> feed -> filt
+1 -> 2 -> 3-> 4 -> 5 [color = 'white'] 
 
-subgraph {
-rank = same; feed; filt;
+node [color = 'black', shape = rectangle, style = filled, fillcolor = Linen]
+
+loc [label = '1 User location + \n travel distance']
+filt [label = '2 Filter user \n preferences']
+sdm [label = '3 Process SDMs + \n create metric']
+access [label = '3* Filter accessible \n areas']
+combin [label = '4 Overlay access \n and metric']
+fin [label = '5 Final nudge', shape = box]
+feed [label = '5* Inform \n future nudges']
+
+loc -> filt [lhead = cluster1]
+# feed -> filt [lhead = cluster1]
+
+
+
+subgraph cluster1{
+filt -> sdm;
+filt -> access; 
+access -> combin; 
+sdm -> combin; 
+combin -> fin;
+
+}
+
+feed -> filt [constraint = F, style = 'dashed', color = 'red'];
+fin -> feed [constraint = F, style = 'dashed', color = 'red'];
+
+subgraph{
+rank = 'same'; fin; feed
+}
+
+
+
 }
 
 }
 ")
+
+
+
+
 
 graph_1 <- 
   create_graph() %>%
