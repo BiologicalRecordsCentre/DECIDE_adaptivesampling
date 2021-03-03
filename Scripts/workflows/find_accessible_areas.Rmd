@@ -126,6 +126,7 @@ The output of the lapply statement is a list of lists. The upper most list conta
 
 ```{r load_locs}
 
+### convert this to a function!
 system.time(
   acc_loc <- lapply(c(1:length(grid_nums)), FUN = function(n){
     
