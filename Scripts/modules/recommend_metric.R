@@ -23,6 +23,9 @@ recommend_metric <- function(prediction_raster,
     
   }
   
+  prediction_raster <- raster::stack(prediction_raster)
+  error_raster <- raster::stack(error_raster)
+  
   # multiplication metric
   if('multiply' %in% method) {
     mult_err <- prediction_raster*error_raster
