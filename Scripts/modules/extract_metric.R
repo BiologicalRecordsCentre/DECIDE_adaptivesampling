@@ -26,26 +26,32 @@ extract_metric <- function(metric,
     stop('Both objects must be of class "sf". Is your metric a raster? Convert it using "stars" package.')
   }
   
-  # first get the intersected boxes to reduce processing time
-  intersects <- apply(st_intersects(metric, shape_obj, sparse = FALSE), 1, any)
-  intersected_metric <- metric[intersects,]
-  
-  print('#####     cropping     #####')
-  # crop the shape object to the grid of the metric
-  # maybe parallelize??
-  cropped <- lapply(c(1:length(intersected_metric[[2]])), FUN = function(x){
-    loop_crop <- st_crop(shape_obj, st_bbox(intersected_metric[x,]))
-    return(loop_crop)
-  })
-  
-  # combine all
-  print('#####     joining     #####')
-  crp_comb <- do.call('rbind', cropped) # takes a while
-  
-  # join error_metric and cropped prow
-  crp_err <- st_join(crp_comb, metric,
-                     largest = FALSE,
-                     join = st_within)
+  if(dim(shape_obj)[1] != 0){
+    # first get the intersected boxes to reduce processing time
+    intersects <- apply(st_intersects(metric, shape_obj, sparse = FALSE), 1, any)
+    intersected_metric <- metric[intersects,]
+    
+    print('#####     cropping     #####')
+    # crop the shape object to the grid of the metric
+    # maybe parallelize??
+    cropped <- lapply(c(1:length(intersected_metric[[2]])), FUN = function(x){
+      loop_crop <- st_crop(shape_obj, st_bbox(intersected_metric[x,]))
+      return(loop_crop)
+    })
+    
+    # combine all
+    print('#####     joining     #####')
+    crp_comb <- do.call('rbind', cropped) # takes a while
+    
+    # join error_metric and cropped prow
+    crp_err <- st_join(crp_comb, metric,
+                       largest = FALSE,
+                       join = st_within)
+  } else {
+    print('! Cropping object is empty, returning NULL output')
+    
+    crp_err <- NULL
+  }
   
   return(crp_err)
 }
