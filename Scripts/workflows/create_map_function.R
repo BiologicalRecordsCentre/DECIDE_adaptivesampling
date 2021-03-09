@@ -119,3 +119,44 @@ system.time(
                              metric = sf_rast))
 
 ## plot the final image
+# which is conditional on which layers are available
+
+
+{
+  base_plot <- ggplot() +
+    geom_sf(data = sf_rast, aes(fill = error_metric), alpha = 0.5, colour = 'white', lwd = 0) +
+    xlab('') + ylab('') +
+    coord_sf(datum = sf::st_crs(27700)) +
+    scale_fill_viridis(option = 'D',  na.value = "transparent",
+                       name = 'DECIDE Score') +
+    scale_colour_viridis(option = 'D',  na.value = "transparent",
+                         name = 'DECIDE Score') +
+    theme_bw() +
+    theme(text = element_text(size = 15))
+  
+  # footpaths
+  if (!is.null(access_metrics[[1]])) {
+    base_plot <- base_plot +
+      geom_sf(data = access_metrics[[1]], aes(col = error_metric), show.legend = F, size = 0.8) +
+      coord_sf(datum = sf::st_crs(27700))
+  }
+  
+  # greenspaces
+  if (!is.null(access_metrics[[2]])) {
+    base_plot <- base_plot +
+      geom_sf(data = access_metrics[[2]], aes(fill = error_metric)) +
+      coord_sf(datum = sf::st_crs(27700))
+  }
+  
+  # Open access areas
+  if (!is.null(access_metrics[[4]])) {
+    base_plot <- base_plot +
+      geom_sf(data = access_metrics[[4]], aes(fill = error_metric)) +
+      coord_sf(datum = sf::st_crs(27700))
+  }
+  
+  base_plot
+}
+
+
+
