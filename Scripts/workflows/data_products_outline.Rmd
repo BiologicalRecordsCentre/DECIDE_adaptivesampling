@@ -158,7 +158,7 @@ There are various data products that are available from each stage of the proces
 
 ## Raw probability of presence and variation
 
-The SDMs try to find correlations between the areas where species are present and absent and environmental variables, such as temperature, rainfall and the CEH landcover variables. These are being calculated at a 100m resolution for the whole of the UK, providing us with an extremely fine-scale model of species' distributions. The main outputs from the SDMs will be the raw probability of presence for each species (Figure \@ref(fig:plotrawsdm) a) and the amount of variation in those predictions (i.e. the amount of confidence we have that those predictions are right; (Figure \@ref(fig:plotrawsdm) b). These different layers will be subsetted for the locations of different users and the distance that they are willing to travel.
+The SDMs try to find correlations between the areas where species are present and absent and environmental variables, such as temperature, rainfall and the CEH landcover variables. These are being calculated at a 100m resolution for the whole of the UK, providing us with an extremely fine-scale model of species' distributions. The main outputs from the SDMs will be the raw probability of presence for each species (Figure \@ref(fig:plotrawsdm) a) and the amount of variation in those predictions (i.e. the amount of confidence we have that those predictions are right; [Figure \@ref(fig:plotrawsdm) b]). These different layers will be subsetted for the locations of different users and the distance that they are willing to travel.
 
 ```{r crop_region, include = FALSE}
 
@@ -253,16 +253,18 @@ err_pl_sub <- raster::as.data.frame(crop_ls_err[[1]], xy = T) %>%
 
 ## The metric
 
-In order to decide where to send people, we need to create a metric which will be some combination of the probability of presence layer, the variation layer and something to do with user preferences. This metric will be key to determining where to send people and therefore requires a lot of thought...
+In order to decide where to send people, we need to create a metric which will be some combination of the probability of presence layer, the variation layer and something to do with user preferences. This metric will be key to determining where to send people and therefore requires a lot of thought.
 
-**What will the DECIDE score used to develop nudges be based on?**
+**How will the metric (DECIDE score) be calculated?**
+
+Here are some potential ideas/talking points:
 
 1) combination of SDM outputs only
 2) combination of SDM outputs, location of previous sightings
 3) combination of SDM outputs, location of previous sightings and user preferences
 4) combination of SDM outputs and location of previous sightings, filtered by user preferences
 
-Below, we have simply used the sum of the probability of presence layer and the error layer, which is a place-holder until something more sophisticated is developed. This metric could be displayed as-is for each species (Figure \@ref(fig:metric)), could be aggregated in some way across all the species present in the region (Figure \@ref(fig:aggregatedmetric) a) or presented as the cells ranked according to this metric (Figure \@ref(fig:aggregatedmetric) b)
+Below, we have simply used the sum of the probability of presence layer and the error layer, which is a place-holder until something more sophisticated is developed. This metric could be displayed as-is for each species (Figure \@ref(fig:metric)), could be aggregated in some way across all the species present in the region (Figure \@ref(fig:aggregatedmetric) a) or presented as the cells ranked according to this metric (Figure \@ref(fig:aggregatedmetric) b).
 
 ```{r metric, fig.height = 6, fig.width = 12, fig.cap='The DECIDE score for three moth species within 2km of CEH Wallingford'}
 
@@ -291,7 +293,7 @@ raster::as.data.frame(additive_metric, xy = T) %>%
 ```
 
 
-```{r aggregatedmetric, fig.height = 6, fig.width = 12, fig.cap='The summed DECIDE score across all species'}
+```{r aggregatedmetric, fig.height = 6, fig.width = 12, fig.cap='(a) The summed DECIDE score across all species and (b) the inverse rank of these cells according to the error metric (*i.e. the largest number being the most important to visit*)'}
 
 agg_rank <- recommend_rank(predict_err_raster = additive_metric,
                            method = 'additive')
@@ -327,7 +329,7 @@ agg_score_p + agg_rank_p +
 
 ## Metrics extracted into accessible areas
 
-We can then extract the  metric layer into areas that are accessible to recorders, for example public footpaths and greenspaces (Figure \@ref(fig:plotaccmetric))
+We can then extract the  metric layer into areas that are accessible to recorders, for example public footpaths and greenspaces (Figure \@ref(fig:plotaccmetric)). This makes it clear which parts of a given footpath or greenspace that people should focus their effort on.
 
 
 ```{r load_access_areas, include = F}
@@ -449,6 +451,7 @@ final_acc_loc <- lapply(all_outs, filter_distance,
 
 ```
 
+
 ```{r extract_metric, include = F}
 
 suppressWarnings(
@@ -456,11 +459,12 @@ suppressWarnings(
 
 ```
 
-```{r plotaccmetric, fig.cap='Public Rights of Way and Accessible Greenspaces with their associated metric'}
+
+```{r plotaccmetric, fig.cap='Public Rights of Way and Accessible Greenspaces with their associated metric. The see-through background layer is the raw DECIDE score for the area of interest, the lines are the Public Rights of Way and the filled non-transparent areas are accessible greenspaces. *Access land can also be included in this output if any is present within the area of interest.*'}
 
 ggplot() +
   geom_sf(data = sf_rast, aes(fill = error_metric), alpha = 0.5, colour = 'white') +
-  geom_sf(data = access_metrics[[3]], aes(fill = error_metric)) +
+  # geom_sf(data = access_metrics[[3]], aes(fill = error_metric)) +
   geom_sf(data = access_metrics[[2]], aes(fill = error_metric)) +
   geom_sf(data = access_metrics[[1]], aes(col = error_metric), show.legend = F, size = 0.8) +
   xlab('') + ylab('') +
