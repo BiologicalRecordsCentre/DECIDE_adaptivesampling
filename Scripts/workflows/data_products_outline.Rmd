@@ -164,8 +164,8 @@ The SDMs try to find correlations between the areas where species are present an
 
 
 location = c(-1.110557, 51.602436)
-# location = c(-2.722295, 54.038337)
-distance = 2000
+location = c(-2.775565, 54.041027) # lancaster
+distance = 5000
 
 crop_ls_pred <- list()
 crop_ls_err <- list()
@@ -454,8 +454,11 @@ final_acc_loc <- lapply(all_outs, filter_distance,
 
 ```{r extract_metric, include = F}
 
-suppressWarnings(
-  access_metrics <- lapply(final_acc_loc[c(1:2, 4)], extract_metric, metric = sf_rast))
+system.time(
+  access_metrics <- mclapply(X = final_acc_loc, 
+                             FUN = extract_metric, 
+                             mc.cores = 6,
+                             metric = sf_rast))
 
 ```
 
@@ -464,11 +467,12 @@ suppressWarnings(
 
 ggplot() +
   geom_sf(data = sf_rast, aes(fill = error_metric), alpha = 0.5, colour = 'white') +
-  # geom_sf(data = access_metrics[[3]], aes(fill = error_metric)) +
   geom_sf(data = access_metrics[[2]], aes(fill = error_metric)) +
   geom_sf(data = access_metrics[[1]], aes(col = error_metric), show.legend = F, size = 0.8) +
   xlab('') + ylab('') +
-  scale_fill_viridis(option = 'D',  na.value = "transparent", 
+  # geom_sf(data = access_metrics[[3]], aes(shape = accessType), colour = 'red') +
+  coord_sf(datum = sf::st_crs(27700)) +
+  scale_fill_viridis(option = 'D',  na.value = "transparent",
                      name = 'DECIDE Score') +
   scale_colour_viridis(option = 'D',  na.value = "transparent",
                        name = 'DECIDE Score') +

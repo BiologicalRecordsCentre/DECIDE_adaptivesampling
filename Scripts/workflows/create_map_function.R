@@ -1,4 +1,3 @@
-
 ########        Function for providing map        ########
 
 ####    Inputs
@@ -36,8 +35,8 @@ source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/
 
 # find grid numbers
 grid_numbers <- load_gridnumbers(location = location,
-                                distance = distance,
-                                grid = grid)
+                                 distance = distance,
+                                 grid = grid)
 
 ## species data
 # load species data
@@ -70,7 +69,7 @@ system.time(
     prow_files <- list.files(prow_loc,
                              full.names = T,
                              pattern = paste0(grid_nums[n], '.shp'))
-
+    
     prow <- sf::st_read(prow_files, quiet = TRUE)
     st_crs(prow) <- 27700
     
@@ -78,7 +77,7 @@ system.time(
     grnspc_files <- list.files(grnspc_loc,
                                full.names = T,
                                pattern = paste0(grid_nums[n], '.shp'))
-
+    
     grnspc <- sf::st_read(grnspc_files, quiet = TRUE)
     st_crs(grnspc) <- 27700
     
@@ -86,15 +85,15 @@ system.time(
     accs_files <- list.files(accspnt_loc,
                              full.names = T,
                              pattern = paste0(grid_nums[n], '.shp'))
-
+    
     accs <- sf::st_read(accs_files, quiet = TRUE)
     st_crs(accs) <- 27700
     
     # access land .shp
     accslnd_files <- list.files(access_land_loc,
-                             full.names = T,
-                             pattern = paste0(grid_nums[n], '.shp'))
-
+                                full.names = T,
+                                pattern = paste0(grid_nums[n], '.shp'))
+    
     accs <- sf::st_read(accslnd_files, quiet = TRUE)
     st_crs(accs) <- 27700
     
@@ -113,3 +112,10 @@ final_acc_loc <- lapply(all_outs, filter_distance,
 
 ## overlay species and shape data
 # extract metric into shapes
+system.time(
+  access_metrics <- mclapply(X = final_acc_loc, 
+                             FUN = extract_metric, 
+                             mc.cores = 6,
+                             metric = sf_rast))
+
+## plot the final image
