@@ -11,7 +11,6 @@
 location = c(-1.110557, 51.602436) # wallingford
 location = c(-2.775565, 54.041027) # lancaster
 distance = 5000
-grid = st_read('/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/UK_grids/uk_grid_25km.shp')
 
 
 
@@ -33,7 +32,11 @@ source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/
 source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/modules/recommend_agg_rank.R")
 source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/modules/extract_metric.R")
 
-# find grid numbers
+# load a UK grid - currently 10km
+grid <- st_read('/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/UK_grids/uk_grid_10km.shp')
+st_crs(grid) <- 27700
+
+# find grid numbers - same for all datasets
 grid_numbers <- load_gridnumbers(location = location,
                                  distance = distance,
                                  grid = grid)
@@ -49,17 +52,11 @@ grid_numbers <- load_gridnumbers(location = location,
 
 ## shape data
 # point to shape locations
-prow_loc <- ("/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/rowmaps_footpathbridleway/rowmaps_footpathbridleway/gridded_data")
-grnspc_loc <- "/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/OS_greenspaces/OS Open Greenspace (ESRI Shape File) GB/data/gridded_greenspace_data/"
-accspnt_loc <- "/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/OS_greenspaces/OS Open Greenspace (ESRI Shape File) GB/data/gridded_accesspoint_data/"
-access_land_loc <- "/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/CRoW_Act_2000_-_Access_Layer_(England)-shp/gridded_data/"
+prow_loc <- ("/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/rowmaps_footpathbridleway/rowmaps_footpathbridleway/gridded_data_10km")
+grnspc_loc <- "/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/OS_greenspaces/OS Open Greenspace (ESRI Shape File) GB/data/gridded_greenspace_data_10km/"
+accspnt_loc <- "/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/OS_greenspaces/OS Open Greenspace (ESRI Shape File) GB/data/gridded_accesspoint_data_10km/"
+access_land_loc <- "/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/CRoW_Act_2000_-_Access_Layer_(England)-shp/gridded_data_10km/"
 
-# load grid
-uk_grid <- st_read('/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/UK_grids/uk_grid_25km.shp')
-st_crs(uk_grid) <- 27700
-
-# find grid of interest
-grid_nums <- load_gridnums(location, distance, uk_grid)
 
 # load accessible areas
 system.time(
@@ -86,16 +83,16 @@ system.time(
                              full.names = T,
                              pattern = paste0(grid_nums[n], '.shp'))
     
-    accs <- sf::st_read(accs_files, quiet = TRUE)
-    st_crs(accs) <- 27700
+    accspnt <- sf::st_read(accs_files, quiet = TRUE)
+    st_crs(accspnt) <- 27700
     
     # access land .shp
     accslnd_files <- list.files(access_land_loc,
                                 full.names = T,
                                 pattern = paste0(grid_nums[n], '.shp'))
     
-    accs <- sf::st_read(accslnd_files, quiet = TRUE)
-    st_crs(accs) <- 27700
+    accslnd <- sf::st_read(accslnd_files, quiet = TRUE)
+    st_crs(accslnd) <- 27700
     
     return(list(prow, grnspc, accspnt, accslnd))
     
