@@ -9,7 +9,9 @@
 
 ## input variables
 location = c(-1.110557, 51.602436) # wallingford
-location = c(-2.775565, 54.041027) # lancaster
+# location = c(-2.775565, 54.041027) # lancaster
+# location = c(-2.073519, 51.906940) # cheltenham
+# location = c(-0.178529, 51.522754) # london - takes much longer because of high footpath density
 distance = 5000
 
 
@@ -23,6 +25,7 @@ require(raster) ## try to replace with terra
 require(tidyverse)
 require(viridis)
 require(sf)
+library(parallel)
 
 # source functions
 source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/modules/load_gridnumbers.R")
@@ -60,12 +63,12 @@ access_land_loc <- "/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlay
 
 # load accessible areas
 system.time(
-  acc_loc <- lapply(c(1:length(grid_nums)), FUN = function(n){
+  acc_loc <- lapply(c(1:length(grid_numbers)), FUN = function(n){
     
-    # prow
+    # prow .shp
     prow_files <- list.files(prow_loc,
                              full.names = T,
-                             pattern = paste0(grid_nums[n], '.shp'))
+                             pattern = paste0('_', grid_numbers[n], '.shp'))
     
     prow <- sf::st_read(prow_files, quiet = TRUE)
     st_crs(prow) <- 27700
@@ -73,7 +76,7 @@ system.time(
     # greenspaces .shp
     grnspc_files <- list.files(grnspc_loc,
                                full.names = T,
-                               pattern = paste0(grid_nums[n], '.shp'))
+                               pattern = paste0('_', grid_numbers[n], '.shp'))
     
     grnspc <- sf::st_read(grnspc_files, quiet = TRUE)
     st_crs(grnspc) <- 27700
@@ -81,7 +84,7 @@ system.time(
     # access points .shp
     accs_files <- list.files(accspnt_loc,
                              full.names = T,
-                             pattern = paste0(grid_nums[n], '.shp'))
+                             pattern = paste0('_', grid_numbers[n], '.shp'))
     
     accspnt <- sf::st_read(accs_files, quiet = TRUE)
     st_crs(accspnt) <- 27700
@@ -89,7 +92,7 @@ system.time(
     # access land .shp
     accslnd_files <- list.files(access_land_loc,
                                 full.names = T,
-                                pattern = paste0(grid_nums[n], '.shp'))
+                                pattern = paste0('_', grid_numbers[n], '.shp'))
     
     accslnd <- sf::st_read(accslnd_files, quiet = TRUE)
     st_crs(accslnd) <- 27700
