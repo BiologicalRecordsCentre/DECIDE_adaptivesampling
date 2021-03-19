@@ -1,19 +1,16 @@
-########        Function for providing map        ########
+########        Function for providing map for Richard       ########
 
 ####    Inputs
 
 ###' Location
 ###' Distance
-###' Objects (?)
-###' etc.... fill in later
+
+
+#####    Currently only works for Wallingford (because of file transfer issues).
 
 ## input variables
 location = c(-1.110557, 51.602436) # wallingford
-# location = c(-2.775565, 54.041027) # lancaster
-# location = c(-2.073519, 51.906940) # cheltenham
-# location = c(-0.178529, 51.522754) # london - takes much longer because of high footpath density
 distance = 5000
-
 
 
 #### Start of overall wrapper function
@@ -25,43 +22,80 @@ require(raster) ## try to replace with terra
 require(tidyverse)
 require(viridis)
 require(sf)
-library(parallel)
+require(parallel)
 
 # source functions
-source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/modules/load_gridnumbers.R")
-source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/modules/filter_distance.R")
-source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/modules/recommend_rank.R")
-source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/modules/recommend_metric.R")
-source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/modules/recommend_agg_rank.R")
-source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/modules/extract_metric.R")
+source("Data/example_for_rich/functions/load_gridnumbers.R")
+source("Data/example_for_rich/functions/filter_distance.R")
+source("Data/example_for_rich/functions/recommend_rank.R")
+source("Data/example_for_rich/functions/recommend_metric.R")
+source("Data/example_for_rich/functions/recommend_agg_rank.R")
+source("Data/example_for_rich/functions/extract_metric.R")
 
 # load a UK grid - currently 10km
-grid <- st_read('/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/UK_grids/uk_grid_10km.shp')
+grid <- st_read('Data/example_for_rich/grids/uk_grid_10km.shp')
 st_crs(grid) <- 27700
 
-# find grid numbers - same for all datasets
+# find grid numbers that location + buffered zone covers
 grid_numbers <- load_gridnumbers(location = location,
                                  distance = distance,
                                  grid = grid)
 
+
 ## species data
-# load species data
+# species names
+names <- unique(gsub(pattern = "rf_SDMs_|_meanpred.grd|_meanpred.gri", 
+                     replacement = '',
+                     x = list.files('Data/example_for_rich/rf_models/', pattern = 'meanpred')))
+names
+
+# predicted probability distributions
+preds <- raster::stack(list.files('Data/example_for_rich/rf_models/', 
+                                  pattern = 'meanpred.grd',
+                                  full.names = TRUE))
+names(preds) <- names
+
+# variation layers
+var <- raster::stack(list.files('Data/example_for_rich/rf_models/', 
+                                pattern = 'quantilerange.grd',
+                                full.names = TRUE))
+names(var) <- names
+
 
 # crop species data
+crop_pred <- filter_distance(obj = preds,
+                             location = location,
+                             distance = distance,
+                             method = 'buffer')
 
-# create metric
+crop_var <- filter_distance(obj = var,
+                            location = location,
+                            distance = distance,
+                            method = 'buffer')
 
-# aggregate metric
+
+# create the decide score
+additive_score <- recommend_metric(prediction_raster = crop_pred,
+                                   error_raster = crop_var,
+                                   method = 'additive')$additive
+
+# Get the metric aggregated across all specyes
+aggregate_score <- recommend_rank(predict_err_raster = additive_score,
+                                  method = 'additive')$error_metric
+
+# covert raster to an sf object for use with later functions
+aggregate_score_converted <- conv_rast(raster = aggregate_score,
+                                       coord = 27700) # British National Grid
 
 ## shape data
 # point to shape locations
-prow_loc <- ("/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/rowmaps_footpathbridleway/rowmaps_footpathbridleway/gridded_data_10km")
-grnspc_loc <- "/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/OS_greenspaces/OS Open Greenspace (ESRI Shape File) GB/data/gridded_greenspace_data_10km/"
-accspnt_loc <- "/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/OS_greenspaces/OS Open Greenspace (ESRI Shape File) GB/data/gridded_accesspoint_data_10km/"
-access_land_loc <- "/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/CRoW_Act_2000_-_Access_Layer_(England)-shp/gridded_data_10km/"
+prow_loc <- 'Data/example_for_rich/grids/prow_grid/'
+grnspc_loc <- 'Data/example_for_rich/grids/greenspace_grid'
+accspnt_loc <- 'Data/example_for_rich/grids/accesspoint_grid'
+access_land_loc <- 'Data/example_for_rich/grids/accessland_grid'
 
 
-# load accessible areas
+# load the accessible areas
 system.time(
   acc_loc <- lapply(c(1:length(grid_numbers)), FUN = function(n){
     
@@ -116,15 +150,16 @@ system.time(
   access_metrics <- mclapply(X = final_acc_loc, 
                              FUN = extract_metric, 
                              mc.cores = 6,
-                             metric = sf_rast))
+                             metric = aggregate_score_converted))
 
 ## plot the final image
-# which is conditional on which layers are available
+# This is conditional on which layers are available
+# as, for some regions for example, there isn't any access land 
 
 
 {
   base_plot <- ggplot() +
-    geom_sf(data = sf_rast, aes(fill = error_metric), alpha = 0.5, colour = 'white', lwd = 0) +
+    geom_sf(data = aggregate_score_converted, aes(fill = error_metric), alpha = 0.5, colour = 'white', lwd = 0) +
     xlab('') + ylab('') +
     coord_sf(datum = sf::st_crs(27700)) +
     scale_fill_viridis(option = 'D',  na.value = "transparent",
