@@ -193,5 +193,5 @@ system.time(
   base_plot
 }
 
-
-
+# ggsave(base_plot, filename = 'outputs/Score_example_wallingford_5k.tif',
+#        device = 'tiff', dpi = 300)
