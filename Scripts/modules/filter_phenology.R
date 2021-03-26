@@ -82,6 +82,7 @@ filter_phenology <- function(date = Sys.Date(), # needs to be in format "YYYY-MM
 
 
 ####    Testing    ####
-filter_phenology(taxa_list = "moth",
+filter_phenology(data = Sys.Date(),
+                 taxa_list = "moth",
                  location = c(-2, 60))
 
