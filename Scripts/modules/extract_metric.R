@@ -22,18 +22,23 @@ library(viridis)
 extract_metric <- function(metric, 
                            shape_obj){
   
-  if(class(metric)[1] != 'sf' | class(shape_obj)[1] != 'sf'){
+  if(is.null(shape_obj)){
+    
+    warning('!!!!    Cropping object is empty, returning NULL output    !!!!')
+    
+    crp_err <- NULL
+    
+  } else if (class(metric)[1] != 'sf' | class(shape_obj)[1] != 'sf'){
+    
     stop('Both objects must be of class "sf". Is your metric a raster? Convert it using "stars" package.')
-  }
-  
-  if(dim(shape_obj)[1] != 0){
+    
+  } else if (dim(shape_obj)[1] != 0){
     # first get the intersected boxes to reduce processing time
     intersects <- apply(st_intersects(metric, shape_obj, sparse = FALSE), 1, any)
     intersected_metric <- metric[intersects,]
     
     print('#####     cropping     #####')
     # crop the shape object to the grid of the metric
-    # maybe parallelize??
     cropped <- lapply(c(1:length(intersected_metric[[2]])), FUN = function(x){
       loop_crop <- st_crop(shape_obj, st_bbox(intersected_metric[x,]))
       return(loop_crop)
@@ -47,10 +52,13 @@ extract_metric <- function(metric,
     crp_err <- st_join(crp_comb, metric,
                        largest = FALSE,
                        join = st_within)
+    
   } else {
-    print('! Cropping object is empty, returning NULL output')
+    
+    warning('!!!!    Returning NULL output, check input objects    !!!!')
     
     crp_err <- NULL
+    
   }
   
   return(crp_err)
