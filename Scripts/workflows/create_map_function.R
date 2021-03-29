@@ -9,11 +9,12 @@
 #####    Currently only works for Wallingford (because of file transfer issues).
 
 ## input variables
-location = c(-1.110557, 51.602436) # wallingford
-location = c(-3.271289, 55.905648) # edinburgh
-location = c(-2.626592, 55.268517) # scottish/english borders
-location = c(-3.626351, 55.083935) # Dumfries
-distance = 10000
+# location = c(-1.110557, 51.602436) # wallingford
+# location = c(-3.271289, 55.905648) # edinburgh
+# location = c(-2.626592, 55.268517) # scottish/english borders
+# location = c(-3.626351, 55.083935) # Dumfries
+location = c(-3.403110, 52.098200) # Powys Wales
+distance = 5000
 
 
 #### Start of overall wrapper function
@@ -28,6 +29,7 @@ require(sf)
 require(parallel)
 
 # source functions
+source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/modules/load_gridnumbers.R")
 source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/modules/filter_distance.R")
 source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/modules/recommend_rank.R")
 source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/modules/recommend_metric.R")
@@ -126,7 +128,7 @@ wild <- "/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/ra
 
 
 # # for rich
-prow_loc <- 'Data/example_for_rich/grids/prow_grid/'
+# prow_loc <- 'Data/example_for_rich/grids/prow_grid/'
 # grnspc_loc <- 'Data/example_for_rich/grids/greenspace_grid'
 # accspnt_loc <- 'Data/example_for_rich/grids/accesspoint_grid'
 # access_land_loc <- 'Data/example_for_rich/grids/accessland_grid'
@@ -299,41 +301,41 @@ system.time(
 # as, for some regions for example, there isn't any access land 
 
 
-{
-  base_plot <- ggplot() +
-    geom_sf(data = aggregate_score_converted, aes(fill = error_metric), alpha = 0.5, colour = 'white', lwd = 0) +
-    xlab('') + ylab('') +
-    coord_sf(datum = sf::st_crs(27700)) +
-    scale_fill_viridis(option = 'D',  na.value = "transparent",
-                       name = 'DECIDE Score') +
-    scale_colour_viridis(option = 'D',  na.value = "transparent",
-                         name = 'DECIDE Score') +
-    theme_bw() +
-    theme(text = element_text(size = 15))
-  
-  # footpaths
-  if (!is.null(access_metrics[[1]])) {
-    base_plot <- base_plot +
-      geom_sf(data = access_metrics[[1]], aes(col = error_metric), show.legend = F, size = 0.8) +
-      coord_sf(datum = sf::st_crs(27700))
-  }
-  
-  # greenspaces
-  if (!is.null(access_metrics[[2]])) {
-    base_plot <- base_plot +
-      geom_sf(data = access_metrics[[2]], aes(fill = error_metric)) +
-      coord_sf(datum = sf::st_crs(27700))
-  }
-  
-  # Open access areas
-  if (!is.null(access_metrics[[4]])) {
-    base_plot <- base_plot +
-      geom_sf(data = access_metrics[[4]], aes(fill = error_metric)) +
-      coord_sf(datum = sf::st_crs(27700))
-  }
-  
-  base_plot
-}
+# {
+#   base_plot <- ggplot() +
+#     geom_sf(data = aggregate_score_converted, aes(fill = error_metric), alpha = 0.5, colour = 'white', lwd = 0) +
+#     xlab('') + ylab('') +
+#     coord_sf(datum = sf::st_crs(27700)) +
+#     scale_fill_viridis(option = 'D',  na.value = "transparent",
+#                        name = 'DECIDE Score') +
+#     scale_colour_viridis(option = 'D',  na.value = "transparent",
+#                          name = 'DECIDE Score') +
+#     theme_bw() +
+#     theme(text = element_text(size = 15))
+#   
+#   # footpaths
+#   if (!is.null(access_metrics[[1]])) {
+#     base_plot <- base_plot +
+#       geom_sf(data = access_metrics[[1]], aes(col = error_metric), show.legend = F, size = 0.8) +
+#       coord_sf(datum = sf::st_crs(27700))
+#   }
+#   
+#   # greenspaces
+#   if (!is.null(access_metrics[[2]])) {
+#     base_plot <- base_plot +
+#       geom_sf(data = access_metrics[[2]], aes(fill = error_metric)) +
+#       coord_sf(datum = sf::st_crs(27700))
+#   }
+#   
+#   # Open access areas
+#   if (!is.null(access_metrics[[4]])) {
+#     base_plot <- base_plot +
+#       geom_sf(data = access_metrics[[4]], aes(fill = error_metric)) +
+#       coord_sf(datum = sf::st_crs(27700))
+#   }
+#   
+#   base_plot
+# }
 
 # ggsave(base_plot, filename = 'outputs/Score_example_wallingford_5k.tif',
 #        device = 'tiff', dpi = 300)
@@ -365,10 +367,11 @@ for(pl in 1:length(access_metrics)){
              unique(st_geometry_type(access_metrics[[pl]])) == 'MULTIPOLYGON') {
     
     base_plot <- base_plot +
-      geom_sf(data = access_metrics[[pl]], aes(fill = error_metric), show.legend = F, size = 0.8) +
+      geom_sf(data = access_metrics[[pl]], aes(fill = error_metric, colour = error_metric), show.legend = F, size = 0.8) +
       coord_sf(datum = sf::st_crs(27700))
     
-  } else if (unique(st_geometry_type(access_metrics[[pl]])) == 'LINESTRING') {
+  } else if (any(unique(st_geometry_type(access_metrics[[pl]])) == 'LINESTRING') |
+             any(unique(st_geometry_type(access_metrics[[pl]])) == 'MULTILINESTRING')) {
     
     base_plot <- base_plot +
       geom_sf(data = access_metrics[[pl]], aes(colour = error_metric), show.legend = F, size = 0.8) +
