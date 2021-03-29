@@ -70,15 +70,16 @@ filter_distance <- function(obj,
       return(masked_area) # return only the masked region x distance from the 'location'
       
     } else if (class(obj)[1] == 'sf' && 
-               unique(st_geometry_type(obj)) == 'LINESTRING'){
+               any(unique(st_geometry_type(obj)) == 'LINESTRING') |
+               any(unique(st_geometry_type(obj)) == 'MULTILINESTRING')){
       c_buf <- st_intersection(obj, 
                                buffed) # crop the sf layer
       
       return(c_buf) # return only the masked region x distance from the 'location'
       
     } else if(class(obj)[1] == 'sf' && 
-              (unique(st_geometry_type(obj)) == 'POLYGON' | 
-               unique(st_geometry_type(obj)) == 'MULTIPOLYGON')){
+              (any(unique(st_geometry_type(obj)) == 'POLYGON') | 
+               any(unique(st_geometry_type(obj)) == 'MULTIPOLYGON'))){
       
       c_buf <- st_intersection(sf::st_buffer(obj, dist = 0), # this is a hack to get around shapes that self-intersect. Works for some reason?!
                                buffed) # crop the sf layer
