@@ -5,7 +5,8 @@ library(raster)
 library(dismo)
 library(foreach)
 library(doParallel)
-
+library(sf)
+library(spatialEco)
 
 source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/modules/filter_distance.R")
 source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/modules/recommend_rank.R")
@@ -121,6 +122,101 @@ for(i in 1:length(names)){
 errors <- do.call('rbind', error_out)
 errors
 
+##  create a 'counts' raster layer  
+dfm <- read.csv('Data/species_data/moth/DayFlyingMoths_East_Norths.csv')
+head(dfm)
+
+xy <- dfm[,c("lon","lat")]
+spdf.moth <- SpatialPointsDataFrame(coords = xy, data = dfm,
+                                    proj4string = CRS("+proj=tmerc +lat_0=49 +lon_0=-2 +k=0.9996012717 +x_0=400000 +y_0=-100000 +ellps=airy +units=m +no_defs")) 
+
+# plot(spdf.moth) ## check with plot
+
+### create temporary raster to store number of records in each cell ###
+moth_counts <- species_stack[[1]][[1]] # get a single raster
+
+# make a raster of zeroes for input
+moth_counts[!is.na(moth_counts)] <- 0
+# get the cell index for each point and make a table:
+counts = table(cellFromXY(moth_counts,spdf.moth))
+# fill in the raster with the counts from the cell index:
+moth_counts[as.numeric(names(counts))] <- counts
+plot(moth_counts)
+
+
+
+#####     Kernel density analyses    #####
+
+## with spatstat package
+library(spatstat)
+moth_ppp <- ppp(x = dfm[,c("lon")], y = dfm[,c("lat")],
+                owin(xrange = c(extent(moth_counts)[1], extent(moth_counts)[2]),
+                     yrange = c(extent(moth_counts)[3], extent(moth_counts)[4])))
+
+
+dp <- density(moth_ppp, sigma = 1000) # sigma = 1000 means that it is summarised per 1000m
+plot(dp)
+
+dpr <- raster(dp)
+plot(dpr)
+
+re_dpr <- resample(dpr, moth_counts, method = 'ngb')
+plot(re_dpr)
+
+kernel_moth <- mask(re_dpr, moth_counts)
+plot(kernel_moth)
+# contour(kernel_moth, add = TRUE)
+
+# 
+# # turn into a function
+# density_points <- function(sp_data, surface, agg_dist) {
+# 
+#   # convert to ppp then raster
+#   ppp_rast <- raster(ppp(x = sp_data[,c("lon")], y = sp_data[,c("lat")],
+#                          owin(xrange = c(extent(surface)[1], extent(surface)[2]),
+#                               yrange = c(extent(surface)[3], extent(surface)[4]))))
+# 
+# 
+# 
+# 
+# 
+# }
+
+t <- stack(species_stack[[1]][[c(1, 4)]], kernel_moth)
+tdf <- as.data.frame(t)
+
+tdf2 <- na.omit(tdf)
+head(tdf2)
+
+### subsample to reduce
+ind <- sample(c(1:dim(tdf2)[1]), size = 1000)
+
+tdf2 <- tdf2[ind,]
+
+library(plotly)
+p <- plot_ly(x=tdf2$Adscita_geryon_rf_mean_pred, y=tdf2$Adscita_geryon_rf_quantile_range, z=tdf2$layer, color = tdf2$Adscita_geryon_rf_quantile_range, type="scatter3d", mode="markers")
+p
+
+
+
+td_mat <- as.matrix(tdf2)
+
+plot_ly(z = ~td_mat) %>% add_surface()
+
+# with spatialEco package
+sd_m <- SpatialPoints(coords = dfm[,c("lon","lat")],
+                      proj4string = CRS("+proj=tmerc +lat_0=49 +lon_0=-2 +k=0.9996012717 +x_0=400000 +y_0=-100000 +ellps=airy +units=m +no_defs")) 
+
+ag_moths <- aggregate(moth_counts, fact = 10)
+plot(ag_moths)
+
+kd_moth <- sp.kde(x = sd_m, bw = 10000, 
+                  newdata = moth_counts)
+plot(kd_moth, xlim = c(400000, 500000), ylim = c(500000, 600000))
+
+
+
+##
 
 ## create metric for all species
 sp <- species_stack[[1]]
