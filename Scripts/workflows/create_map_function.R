@@ -9,11 +9,14 @@
 #####    Currently only works for Wallingford (because of file transfer issues).
 
 ## input variables
-# location = c(-1.110557, 51.602436) # wallingford
+location = c(-1.110557, 51.602436) # wallingford
 # location = c(-3.271289, 55.905648) # edinburgh
 # location = c(-2.626592, 55.268517) # scottish/english borders
 # location = c(-3.626351, 55.083935) # Dumfries
-location = c(-3.403110, 52.098200) # Powys Wales
+# location = c(-3.403110, 52.098200) # Powys Wales
+# location = c(-0.373791, 51.359252) # claremont park london region
+# location = c(-2.785436, 54.012698) # lancaster
+# location = c(-2.730696, 54.026759) # quernmore
 distance = 5000
 
 
@@ -115,6 +118,8 @@ prow_loc <- ("/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Da
 grnspc_loc <- "/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/OS_greenspaces/OS Open Greenspace (ESRI Shape File) GB/data/gridded_greenspace_data_10km/"
 accspnt_loc <- "/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/OS_greenspaces/OS Open Greenspace (ESRI Shape File) GB/data/gridded_accesspoint_data_10km/"
 access_land_loc <- "/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/CRoW_Act_2000_-_Access_Layer_(England)-shp/gridded_data_10km/"
+nat_trust_loc <- '/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/national_trust/gridded_data_10km/'
+lond_path_loc <- '/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/greater-london-latest-free/london_gridded_data_10km/'
 
 
 # scotland
@@ -180,6 +185,25 @@ system.time(
       st_crs(accslnd) <- 27700
     } else { accslnd <- NULL }
     
+    # national trust .shp
+    national_trust_files <- list.files(nat_trust_loc,
+                                       full.names = T,
+                                       pattern = paste0('_', grid_numbers[n], '.shp'))
+    
+    if(length(national_trust_files) != 0){
+      national_trust <- sf::st_read(national_trust_files, quiet = TRUE)
+      st_crs(national_trust) <- 27700
+    } else { national_trust <- NULL }
+    
+    # london shapes .shp
+    london_files <- list.files(lond_path_loc,
+                                       full.names = T,
+                                       pattern = paste0('_', grid_numbers[n], '.shp'))
+    
+    if(length(london_files) != 0){
+      london_paths <- sf::st_read(london_files, quiet = TRUE)
+      st_crs(london_paths) <- 27700
+    } else { london_paths <- NULL }
     
     
     ####    SCOTLAND    ####
@@ -272,7 +296,7 @@ system.time(
       st_crs(wild_shp) <- 27700
     } else { wild_shp <- NULL }
     
-    return(list(prow, grnspc, accspnt, accslnd, ## england
+    return(list(prow, grnspc, accspnt, accslnd, national_trust, london_paths, ## england
                 c_paths, pacc_paths, pacc_wood, cairn_shp, tross_shp, cons_shp, nat_shp, wild_shp)) ## scotland
     
   })
@@ -299,6 +323,52 @@ system.time(
 ## plot the final image
 # This is conditional on which layers are available
 # as, for some regions for example, there isn't any access land 
+
+
+## try and do an automated plot regardless of how many layers there are
+
+## first part of the plot will ALLWAYS be the same
+base_plot <- ggplot() +
+  geom_sf(data = aggregate_score_converted, aes(fill = error_metric), alpha = 0.5, colour = 'white', lwd = 0) +
+  xlab('') + ylab('') +
+  coord_sf(datum = sf::st_crs(27700)) +
+  scale_fill_viridis(option = 'D',  na.value = "transparent",
+                     name = 'DECIDE Score') +
+  scale_colour_viridis(option = 'D',  na.value = "transparent",
+                       name = 'DECIDE Score') +
+  theme_bw() +
+  theme(text = element_text(size = 15))
+
+for(pl in 1:length(access_metrics)){
+  
+  print(pl)
+  
+  if (is.null(access_metrics[[pl]])) {
+    
+    next
+    
+  } else if (unique(st_geometry_type(access_metrics[[pl]])) == 'POLYGON' || 
+             unique(st_geometry_type(access_metrics[[pl]])) == 'MULTIPOLYGON') {
+    
+    base_plot <- base_plot +
+      geom_sf(data = access_metrics[[pl]], aes(fill = error_metric, colour = error_metric), show.legend = F, size = 0.8) +
+      coord_sf(datum = sf::st_crs(27700))
+    
+  } else if (any(unique(st_geometry_type(access_metrics[[pl]])) == 'LINESTRING') |
+             any(unique(st_geometry_type(access_metrics[[pl]])) == 'MULTILINESTRING')) {
+    
+    base_plot <- base_plot +
+      geom_sf(data = access_metrics[[pl]], aes(colour = error_metric), show.legend = F, size = 0.8) +
+      coord_sf(datum = sf::st_crs(27700))
+    
+  } else {
+    
+    print("Different object type than one that's been coded for here")
+    
+  }
+}
+
+base_plot
 
 
 # {
@@ -340,44 +410,3 @@ system.time(
 # ggsave(base_plot, filename = 'outputs/Score_example_wallingford_5k.tif',
 #        device = 'tiff', dpi = 300)
 
-
-## try and do an automated plot regardless of how many layers there are
-
-## first part of the plot will ALLWAYS be the same
-base_plot <- ggplot() +
-  geom_sf(data = aggregate_score_converted, aes(fill = error_metric), alpha = 0.5, colour = 'white', lwd = 0) +
-  xlab('') + ylab('') +
-  coord_sf(datum = sf::st_crs(27700)) +
-  scale_fill_viridis(option = 'D',  na.value = "transparent",
-                     name = 'DECIDE Score') +
-  scale_colour_viridis(option = 'D',  na.value = "transparent",
-                       name = 'DECIDE Score') +
-  theme_bw() +
-  theme(text = element_text(size = 15))
-
-for(pl in 1:length(access_metrics)){
-  
-  print(pl)
-  
-  if (is.null(access_metrics[[pl]])) {
-    
-    next
-    
-  } else if (unique(st_geometry_type(access_metrics[[pl]])) == 'POLYGON' || 
-             unique(st_geometry_type(access_metrics[[pl]])) == 'MULTIPOLYGON') {
-    
-    base_plot <- base_plot +
-      geom_sf(data = access_metrics[[pl]], aes(fill = error_metric, colour = error_metric), show.legend = F, size = 0.8) +
-      coord_sf(datum = sf::st_crs(27700))
-    
-  } else if (any(unique(st_geometry_type(access_metrics[[pl]])) == 'LINESTRING') |
-             any(unique(st_geometry_type(access_metrics[[pl]])) == 'MULTILINESTRING')) {
-    
-    base_plot <- base_plot +
-      geom_sf(data = access_metrics[[pl]], aes(colour = error_metric), show.legend = F, size = 0.8) +
-      coord_sf(datum = sf::st_crs(27700))
-    
-  }
-}
-
-base_plot
