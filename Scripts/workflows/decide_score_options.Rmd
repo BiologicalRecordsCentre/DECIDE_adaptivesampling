@@ -117,6 +117,9 @@ for(i in 1:length(names)){
 errors <- do.call('rbind', error_out)
 errors
 
+# name the list entries
+names(species_stack) <- names
+
 ```
 
 
@@ -158,7 +161,7 @@ loads of cells with no counts in so probably useless as a layer
 ## kernel density
 
 
-```{r kern_dens}
+```{r kern_dens, fig.height=8, fig.width=8, message=FALSE, warning=FALSE}
 
 sigma = 10000 # decide number of metres to calculate points over
 
@@ -188,6 +191,7 @@ kern_dens <- function(data, sigma, rast){
   
 }
 
+par(mfrow = c(2,2))
 
 for(i in c(1000, 5000, 10000, 20000)){
   
@@ -198,10 +202,123 @@ for(i in c(1000, 5000, 10000, 20000)){
 }
 
 
+for(i in c(1000, 5000, 10000, 20000)){
+  
+  out <- kern_dens(data = dfm, rast = moth_counts, sigma = i)
+  
+  out_inv <- 1/out
+  
+  plot(log(out_inv), main = paste('inversed grouping distance =', i))
+  
+}
+
+par(mfrow = c(1,1))
+
+```
+
+## crop species to smaller scale
+
+
+```{r cropping, warning=FALSE}
+
+# set location 
+location = c(-2.730696, 54.026759) # quernmore
+# location = c(-1.110557, 51.602436) # wallingford
+
+# distances
+distance = 5000
+
+
+registerDoParallel(7)
+
+# out_cropped <- list()
+system.time(
+  out_cropped <- foreach(s = 1:length(species_stack)) %dopar% {
+    
+    print(s)
+    
+    sp <- species_stack[[s]]
+    
+    
+    # crop the prediction
+    crop_pred <- filter_distance(obj = subset(sp, grep(pattern = 'mean_pred',
+                                                       names(sp))),
+                                 method = 'buffer',
+                                 distance = distance,
+                                 location = location)
+    
+    # crop the error
+    crop_err <- filter_distance(obj = subset(sp, grep(pattern = 'quantile_range',
+                                                      names(sp))),
+                                method = 'buffer',
+                                distance = distance,
+                                location = location)
+    
+    if(length(names(crop_pred))>1){
+      # get the mean
+      m_pred_av <- calc(crop_pred,
+                        mean, na.rm = T)
+      names(m_pred_av) <- 'predictions'
+      
+      
+      m_quant_av <- calc(crop_err,
+                         mean, na.rm = T)
+      names(m_quant_av) <- 'error'
+    } else {
+      
+      m_pred_av <- crop_err
+      m_quant_av <- crop_err
+      
+    }
+    
+    out_rasts <- list(m_pred_av, m_quant_av)
+    names(out_rasts) <- c('predictions', 'quantile_var')
+    
+    return(out_rasts)
+    
+  }
+)
+
+registerDoSEQ()
+
+names(out_cropped) <- names
+
+```
+
+
+```{r crop_moth_count}
+
+kern_dens(data = dfm, rast = moth_counts, sigma = 5000)
+
+
 ```
 
 
 
+## different DECIDE score options
+
+
+```{r score, fig.height=8, fig.width=10}
+
+score <- recommend_metric(prediction_raster = out_cropped$Adscita_geryon$predictions,
+                          error_raster = out_cropped$Adscita_geryon$quantile_var)
+
+par(mfrow = c(2,2))
+plot(out_cropped$Adscita_geryon$predictions, main = 'prediction')
+plot(out_cropped$Adscita_geryon$quantile_var, main = 'variation')
+
+plot(score$multiply, main = names(score)[1])
+plot(score$additive, main = names(score)[2])
+par(mfrow = c(1,1))
+
+
+```
+
+
+
+
+
+Join the different species together by averaging the decide score weighted by the mean probability of presence across the subsetted area to remove species with low prob of being there... Or maybe weight by the maximum probability of presence so that species only present in a very specific habitat aren't too downweighted 
 
 
 
