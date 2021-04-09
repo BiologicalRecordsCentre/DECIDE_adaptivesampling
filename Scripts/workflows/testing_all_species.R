@@ -142,7 +142,7 @@ counts = table(cellFromXY(moth_counts,spdf.moth))
 # fill in the raster with the counts from the cell index:
 moth_counts[as.numeric(names(counts))] <- counts
 plot(moth_counts)
-
+hist(moth_counts) ## loads of cells with no counts in so probably useless as a layer
 
 
 #####     Kernel density analyses    #####
