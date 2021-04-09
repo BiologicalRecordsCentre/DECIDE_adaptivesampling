@@ -1,0 +1,486 @@
+---
+title: "Data products"
+author: "Thomas MM; Tom A"
+date: "3/1/2021"
+output:
+  bookdown::html_document2:
+    number_sections: false
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = FALSE,
+                      include = TRUE,
+                      warning = FALSE)
+
+
+library(DiagrammeR)
+library(raster)
+library(tidyverse)
+library(viridis)
+library(patchwork)
+library(ggmap)
+
+source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/modules/filter_distance.R")
+source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/modules/recommend_rank.R")
+source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/modules/recommend_metric.R")
+source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/modules/recommend_agg_rank.R")
+source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/modules/extract_metric.R")
+
+```
+
+```{r access_locs}
+
+
+prow_loc <- ("/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/rowmaps_footpathbridleway/rowmaps_footpathbridleway/gridded_data")
+
+grnspc_loc <- "/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/OS_greenspaces/OS Open Greenspace (ESRI Shape File) GB/data/gridded_greenspace_data/"
+
+accspnt_loc <- "/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/OS_greenspaces/OS Open Greenspace (ESRI Shape File) GB/data/gridded_accesspoint_data/"
+
+access_land_loc <- "/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/CRoW_Act_2000_-_Access_Layer_(England)-shp/gridded_data/"
+
+
+```
+
+
+```{r spp_load}
+
+all_spp <- list()
+all_spp_name <- c()
+
+# file list
+files_list <- list.files('/data/notebooks/rstudio-constraintlayers/Data/raw_data/subset_species_ranfor_29_01_21/',
+                         full.names = T)
+
+# system.time(
+for(i in 1:3){#length(files_list)){
+  
+  # load
+  load(files_list[i])
+  
+  # store sdm output file
+  all_spp[[i]] <- all_mods
+  
+  # store names
+  all_spp_name[i] <- as.character(all_mods[[1]]$sdm_output$Species)
+  
+}
+# )
+
+# name the list the names of each species
+names(all_spp) <- all_spp_name
+
+
+```
+
+
+In the document below, we outline the different data products that are as a result of the current Species Distribution Modelling (SDM) work and the work done as part of WP2. So far, the modelling and processing workflow follows five major steps to generate information which can be used to nudge recorders (Figure \@ref(fig:diagram)). The final nudges will be created based on a combination of the outputs from the steps outlined below and any user preferences.
+
+1) Use a recorder's location and the distance they are willing to travel to get an area of interest around them
+
+2) Filter the species available to record, based on the species flying at the current time of year and latitude, and a recorder's preferences (taxa/species of interest, policy [e.g. IUCN red listed?], previous recommendations...)
+
+3) Extract the SDMs and create a score to identify high-priority areas
+
+We need to think about how high-priority regions are determined. We have discussed the idea of a **DECIDE** score (more later); for now we'll refer to this as the *metric*.
+
+3) *Filter the areas that are accessible to the public, e.g. public rights of way and greenspaces
+
+4) Overlay the metric and accessible areas
+
+5) Use this to determine a 'final nudge'
+
+5) *Nudges generated will be retained for each recorder and be used to inform future nudges for that individual.
+
+This point will most likely only happen in year 2.
+
+
+```{r diagram, fig.cap='Workflow for converting user location into usable outputs'}
+
+DiagrammeR::grViz("
+
+digraph boxes {
+
+graph [layout = dot]
+
+# graph [rankdir = LR]
+
+node [color = 'white']
+
+1 -> 2 -> 3-> 4 -> 5 [style = 'invis'] 
+
+node [color = 'black', shape = rectangle, style = filled, fillcolor = Linen]
+
+loc [label = 'User location + \n travel distance']
+filt [label = 'Filter species']
+sdm [label = 'Extract SDMs + \n create metric']
+access [label = 'Find accessible \n areas']
+combin [label = 'Overlay access \n and metric']
+fin [label = 'Final nudge', shape = box]
+feed [label = 'Inform \n future nudges']
+
+loc -> filt [lhead = cluster1]
+# feed -> filt [lhead = cluster1]
+
+
+
+subgraph cluster1 { 
+style = 'invis'
+
+filt -> sdm;
+filt -> access; 
+access -> combin; 
+sdm -> combin; 
+combin -> fin;
+# access -> fin;
+# sdm -> fin
+
+}
+
+feed -> filt [constraint = F, style = 'dashed', color = 'red'];
+fin -> feed [constraint = F, style = 'dashed', color = 'red'];
+
+subgraph{
+rank = 'same'; fin; feed
+}
+
+
+}
+
+}
+")
+
+```
+
+
+# Outputs
+
+There are various data products that are available from each stage of the process, which could all be used in the final app. Below, we show the outputs from different stages in order to provide an outline of what is available to be used.
+
+## Raw probability of presence and variation
+
+The SDMs try to find correlations between the areas where species are present and absent and environmental variables, such as temperature, rainfall and the CEH landcover variables. These are being calculated at a 100m resolution for the whole of the UK, providing us with an extremely fine-scale model of species' distributions. The main outputs from the SDMs will be the raw probability of presence for each species (Figure \@ref(fig:plotrawsdm) a) and the amount of variation in those predictions (i.e. the amount of confidence we have that those predictions are right; [Figure \@ref(fig:plotrawsdm) b]). These different layers will be subsetted for the locations of different users and the distance that they are willing to travel.
+
+```{r crop_region, include = FALSE}
+
+
+location = c(-1.110557, 51.602436)
+location = c(-2.775565, 54.041027) # lancaster
+distance = 5000
+
+crop_ls_pred <- list()
+crop_ls_err <- list()
+
+for(j in 1:length(all_spp)) {
+  
+  # crop the predictions
+  crop_pred <- filter_distance(obj = all_spp[[j]]$rf$sdm_output$Predictions,
+                               method = 'buffer',
+                               distance = distance,
+                               location = location)
+  names(crop_pred) <- 'predictions'
+  
+  # crop the error
+  crop_err <- filter_distance(obj = all_spp[[j]]$rf$quantile_range,
+                              method = 'buffer',
+                              distance = distance,
+                              location = location)
+  names(crop_err) <- 'error'
+  
+  # # plot the predictions and error
+  # plot(crop_pred, main = all_spp[[j]]$rf$sdm_output$Species)
+  # plot(crop_err, main = 'Bootstrapped error')
+  
+  # store everything in lists
+  crop_ls_pred[[j]] <- crop_pred
+  crop_ls_err[[j]] <- crop_err
+  
+}
+
+names(crop_ls_pred) <- all_spp_name
+names(crop_ls_err) <- all_spp_name
+
+
+```
+
+
+
+```{r plotrawsdm, fig.dim = c(12, 6), fig.cap = 'The probability of presence (a) and variation (b) for *Archiearis parthenias* within 2km of CEH Wallingford'}
+
+# prob_pl_uk <- raster::as.data.frame(all_spp[[j]]$rf$sdm_output$Predictions, xy = T) %>% 
+#   ggplot() +
+#   geom_raster(aes(x = x, y = y, fill = layer)) +
+#   coord_quickmap() +
+#   xlab('') + ylab('') +
+#   scale_fill_viridis(option = 'B',  na.value = "transparent", 
+#                      name = 'Probability of presence') +
+#   theme_bw()
+# 
+# err_pl_uk <- raster::as.data.frame(all_spp[[j]]$rf$quantile_range, xy = T) %>% 
+#   ggplot() +
+#   geom_raster(aes(x = x, y = y, fill = layer)) +
+#   coord_quickmap() +
+#   xlab('') + ylab('') +
+#   scale_fill_viridis(option = 'B',  na.value = "transparent", 
+#                      name = 'Variation') +
+#   theme_bw()
+
+# names(crop_ls_pred)[1]
+
+prob_pl_sub <- raster::as.data.frame(crop_ls_pred[[1]], xy = T) %>% 
+  ggplot() +
+  geom_raster(aes(x = x, y = y, fill = predictions)) +
+  coord_quickmap() +
+  xlab('') + ylab('') +
+  scale_fill_viridis(option = 'B',  na.value = "transparent", 
+                     name = 'Probability of presence') +
+  theme_bw()
+
+err_pl_sub <- raster::as.data.frame(crop_ls_err[[1]], xy = T) %>% 
+  ggplot() +
+  geom_raster(aes(x = x, y = y, fill = error)) +
+  coord_quickmap() +
+  xlab('') + ylab('') +
+  scale_fill_viridis(option = 'D',  na.value = "transparent", 
+                     name = 'Raw variation') +
+  theme_bw()
+
+# (prob_pl_uk | err_pl_uk) / 
+(prob_pl_sub | err_pl_sub) + plot_layout(guides = 'collect') +
+  plot_annotation(tag_levels = 'a')
+
+
+```
+
+## The metric
+
+In order to decide where to send people, we need to create a metric which will be some combination of the probability of presence layer, the variation layer and something to do with user preferences. This metric will be key to determining where to send people and therefore requires a lot of thought.
+
+**How will the metric (DECIDE score) be calculated?**
+
+Here are some potential ideas/talking points:
+
+1) combination of SDM outputs only
+2) combination of SDM outputs, location of previous sightings
+3) combination of SDM outputs, location of previous sightings and user preferences
+4) combination of SDM outputs and location of previous sightings, filtered by user preferences
+
+Below, we have simply used the sum of the probability of presence layer and the error layer, which is a place-holder until something more sophisticated is developed. This metric could be displayed as-is for each species (Figure \@ref(fig:metric)), could be aggregated in some way across all the species present in the region (Figure \@ref(fig:aggregatedmetric) a) or presented as the cells ranked according to this metric (Figure \@ref(fig:aggregatedmetric) b).
+
+```{r metric, fig.height = 6, fig.width = 12, fig.cap='The DECIDE score for three moth species within 2km of CEH Wallingford'}
+
+additive_metric <- recommend_metric(prediction_raster = crop_ls_pred,
+                                    error_raster = crop_ls_err,
+                                    method = 'additive')$additive
+
+raster::as.data.frame(additive_metric, xy = T) %>% 
+  pivot_longer(cols = 3:5, names_to = 'species', values_to = 'error') %>% 
+  ggplot() +
+  geom_raster(aes(x=x, y=y, fill = error)) + 
+  coord_quickmap() +
+  xlab('') + ylab('') +
+  scale_fill_viridis(option = 'D',  na.value = "transparent", 
+                     name = 'DECIDE Score') +
+  theme_bw() +
+  facet_wrap(~species, ncol = 3, 
+             labeller = as_labeller(c(Archiearis.parthenias = 'Archiearis parthenias',
+                                      Chiasmia.clathrata = 'Chiasmia clathrata',
+                                      Jordanita.globulariae = 'Jordanita globulariae'))) +
+  theme(strip.background =element_rect(fill="white"),
+        strip.text = element_text(face = "italic"),
+        text = element_text(size = 15))
+
+
+```
+
+
+```{r aggregatedmetric, fig.height = 6, fig.width = 12, fig.cap='(a) The summed DECIDE score across all species and (b) the inverse rank of these cells according to the error metric (*i.e. the largest number being the most important to visit*)'}
+
+agg_rank <- recommend_rank(predict_err_raster = additive_metric,
+                           method = 'additive')
+
+agg_score_p <- as.data.frame(agg_rank, xy=TRUE) %>% 
+  ggplot() +
+  geom_raster(aes(x=x,y=y, fill = error_metric)) +
+  coord_quickmap() +
+  xlab('') + ylab('') +
+  scale_fill_viridis(option = 'D',  na.value = "transparent", 
+                     name = 'DECIDE Score') +
+  theme_bw() +
+  theme(text = element_text(size = 15))
+
+
+agg_rank_p <- as.data.frame(agg_rank, xy=TRUE) %>% 
+  ggplot() +
+  geom_raster(aes(x=x,y=y, fill = inverse_rank)) +
+  coord_quickmap() +
+  xlab('') + ylab('') +
+  scale_fill_viridis(option = 'D',  na.value = "transparent", 
+                     name = 'Inversed rank') +
+  theme_bw() +
+  theme(text = element_text(size = 15))
+
+agg_score_p + agg_rank_p + 
+  # plot_layout(guides = 'collect') +
+  plot_annotation(tag_levels = 'a')
+
+
+```
+
+
+## Metrics extracted into accessible areas
+
+We can then extract the  metric layer into areas that are accessible to recorders, for example public footpaths and greenspaces (Figure \@ref(fig:plotaccmetric)). This makes it clear which parts of a given footpath or greenspace that people should focus their effort on.
+
+
+```{r load_access_areas, include = F}
+
+# convert raster to sf
+sf_rast <- conv_rast(agg_rank$error_metric, 
+                     coord = 27700)
+
+### get the accessible areas
+# function to find grid numbers
+load_gridnums <- function(location, # location in form long, lat
+                          distance, # distance in metres
+                          grid) { # must be an sf_object - can be different grid sizes
+  
+  
+  # create buffer
+  dat_sf <- st_sf(st_sfc(st_point(location)), crs = 4326) # load location points, convert to spatial lat/lon
+  trans_loc <- st_transform(dat_sf, crs = 27700) # transform to BNG
+  buffed <- st_buffer(trans_loc, distance) # create a buffer around the point
+  
+  # find intersection
+  grid_num <- st_intersects(buffed, grid)[[1]]
+  
+  return(grid_num)
+  
+}
+
+# load grid
+uk_grid_25km <- st_read('/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/UK_grids/uk_grid_25km.shp')
+st_crs(uk_grid_25km) <- 27700
+
+# find grid of interest
+grid_nums <- load_gridnums(location, distance, uk_grid_25km)
+
+# load accessible areas
+
+system.time(
+  acc_loc <- lapply(c(1:length(grid_nums)), FUN = function(n){
+    
+    # # prow
+    # prow_files <- list.files(prow_loc, 
+    #                          full.names = T,
+    #                          pattern = paste0(grid_nums[n], '.shp'))
+    # 
+    # prow <- sf::st_read(prow_files, quiet = TRUE)
+    # st_crs(prow) <- 27700
+    
+    # prow .rds
+    prow_files <- list.files(prow_loc, 
+                             full.names = T,
+                             pattern = paste0(grid_nums[n], '.rds'))
+    
+    prow <- readRDS(prow_files)
+    st_crs(prow) <- 27700
+    
+    # # greenspaces .shp
+    # grnspc_files <- list.files(grnspc_loc, 
+    #                            full.names = T,
+    #                            pattern = paste0(grid_nums[n], '.shp'))
+    # 
+    # grnspc <- sf::st_read(grnspc_files, quiet = TRUE)
+    # st_crs(grnspc) <- 27700
+    
+    # greenspaces .rds
+    grnspc_files <- list.files(grnspc_loc, 
+                               full.names = T,
+                               pattern = paste0(grid_nums[n], '.rds'))
+    
+    grnspc <- readRDS(grnspc_files)
+    st_crs(grnspc) <- 27700
+    
+    # # access points .shp
+    # accs_files <- list.files(accspnt_loc, 
+    #                          full.names = T,
+    #                          pattern = paste0(grid_nums[n], '.shp'))
+    # 
+    # accs <- sf::st_read(accs_files, quiet = TRUE)
+    # st_crs(accs) <- 27700
+    
+    # access points
+    accspnt_files <- list.files(accspnt_loc, 
+                                full.names = T,
+                                pattern = paste0(grid_nums[n], '.rds'))
+    
+    accspnt <- readRDS(accspnt_files)
+    st_crs(accspnt) <- 27700
+    
+    
+    # # access land .shp
+    # accslnd_files <- list.files(access_land_loc, 
+    #                          full.names = T,
+    #                          pattern = paste0(grid_nums[n], '.shp'))
+    # 
+    # accs <- sf::st_read(accslnd_files, quiet = TRUE)
+    # st_crs(accs) <- 27700
+    
+    # access points
+    accslnd_files <- list.files(access_land_loc, 
+                                full.names = T,
+                                pattern = paste0(grid_nums[n], '.rds'))
+    
+    accslnd <- readRDS(accslnd_files)
+    st_crs(accslnd) <- 27700
+    
+    
+    return(list(prow, grnspc, accspnt, accslnd))
+    
+  })
+)
+
+all_outs <- do.call(Map, c(rbind, acc_loc))
+
+# crop to region of interest
+final_acc_loc <- lapply(all_outs, filter_distance,
+                        location = location,
+                        distance = distance,
+                        method = 'buffer')
+
+
+```
+
+
+```{r extract_metric, include = F}
+
+system.time(
+  access_metrics <- mclapply(X = final_acc_loc, 
+                             FUN = extract_metric, 
+                             mc.cores = 6,
+                             metric = sf_rast))
+
+```
+
+
+```{r plotaccmetric, fig.cap='Public Rights of Way and Accessible Greenspaces with their associated metric. The see-through background layer is the raw DECIDE score for the area of interest, the lines are the Public Rights of Way and the filled non-transparent areas are accessible greenspaces. *Access land can also be included in this output if any is present within the area of interest.*'}
+
+ggplot() +
+  geom_sf(data = sf_rast, aes(fill = error_metric), alpha = 0.5, colour = 'white') +
+  geom_sf(data = access_metrics[[2]], aes(fill = error_metric)) +
+  geom_sf(data = access_metrics[[1]], aes(col = error_metric), show.legend = F, size = 0.8) +
+  xlab('') + ylab('') +
+  # geom_sf(data = access_metrics[[3]], aes(shape = accessType), colour = 'red') +
+  coord_sf(datum = sf::st_crs(27700)) +
+  scale_fill_viridis(option = 'D',  na.value = "transparent",
+                     name = 'DECIDE Score') +
+  scale_colour_viridis(option = 'D',  na.value = "transparent",
+                       name = 'DECIDE Score') +
+  theme_bw() +
+  theme(text = element_text(size = 15))
+
+
+```
+

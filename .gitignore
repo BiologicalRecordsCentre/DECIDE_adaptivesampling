@@ -3,6 +3,9 @@
 ## Specific folders
 Data/
 schema/
+Scripts/workflows/find_accessible_areas_files/
+Scripts/workflows/data_products_outline_files/
+outputs/
 
 ## specific files
 *.html
