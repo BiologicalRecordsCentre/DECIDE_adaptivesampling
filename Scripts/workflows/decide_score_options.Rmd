@@ -134,141 +134,6 @@ names(species_stack) <- names
 ```
 
 
-## Create a moth counts raster
-
-
-```{r counts, echo=FALSE}
-# 
-# ##  create a 'counts' raster layer  
-# dfm <- read.csv('/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Data/species_data/moth/DayFlyingMoths_East_Norths.csv')
-# head(dfm)
-# 
-# xy <- dfm[,c("lon","lat")]
-# spdf.moth <- SpatialPointsDataFrame(coords = xy, data = dfm,
-#                                     proj4string = CRS("+proj=tmerc +lat_0=49 +lon_0=-2 +k=0.9996012717 +x_0=400000 +y_0=-100000 +ellps=airy +units=m +no_defs")) 
-# 
-# # plot(spdf.moth) ## check with plot
-# 
-# ### create temporary raster to store number of records in each cell ###
-# moth_counts <- species_stack[[1]][[1]] # get a single raster
-# 
-# # make a raster of zeroes for input
-# moth_counts[!is.na(moth_counts)] <- 0
-# 
-# # get the cell index for each point and make a table:
-# counts = table(cellFromXY(moth_counts,spdf.moth))
-# 
-# # fill in the raster with the counts from the cell index:
-# moth_counts[as.numeric(names(counts))] <- counts
-# plot(moth_counts)
-# hist(moth_counts) ## loads of cells with no counts in so probably useless as a layer
-# 
-# ## counts for susan
-# # number of days of sighting of any species for each grid cell
-# # first get number of days of sighting 
-# 
-# km1_eff <- dfm %>% 
-#   group_by(lon,lat) %>% 
-#   summarise(effort = length(unique(date))) %>% 
-#   arrange(-effort)
-# 
-# r_df <- as.data.frame(moth_counts, xy=T)[,1:2]
-# 
-# r_df %>% 
-#   mutate(eff)
-# 
-# 
-# r_df$effort <- km1_eff$effort[match(paste0(r_df$x, r_df$y), paste0(km1_eff$lon, km1_eff$lat))]
-# 
-# 
-# km1_eff %>% 
-#   ggplot() +
-#   geom_histogram(aes(x = effort)) +
-#   theme_classic()
-# 
-# xy_eff <- km1_eff[,c("lon","lat")]
-# spdf.moth_eff <- SpatialPointsDataFrame(coords = xy_eff, data = km1_eff,
-#                                     proj4string = CRS("+proj=tmerc +lat_0=49 +lon_0=-2 +k=0.9996012717 +x_0=400000 +y_0=-100000 +ellps=airy +units=m +no_defs")) 
-# 
-# moth_eff_1km <- species_stack[[1]][[1]] # get a single raster
-# 
-# # make a raster of zeroes for input
-# moth_eff_1km[!is.na(moth_eff_1km)] <- 0
-# 
-# # get the cell index for each point and make a table:
-# effort = table(cellFromXY(moth_eff_1km,spdf.moth_eff))
-# hist(effort)
-# 
-# # fill in the raster with the counts from the cell index:
-# moth_eff_1km[as.numeric(names(effort))] <- effort
-# plot(moth_eff_1km)
-# 
-# round(dfm$lon[1])
-
-```
-
-
-loads of cells with no counts in so probably useless as a layer
-
-
-## kernel density
-
-
-```{r kern_dens, fig.height=8, fig.width=8, message=FALSE, warning=FALSE}
-# 
-# sigma = 10000 # decide number of metres to calculate points over
-# 
-# moth_ppp <- ppp(x = dfm[,c("lon")], y = dfm[,c("lat")],
-#                 owin(xrange = c(extent(moth_counts)[1], extent(moth_counts)[2]),
-#                      yrange = c(extent(moth_counts)[3], extent(moth_counts)[4])))
-# 
-# 
-# dp <- stats::density(moth_ppp, sigma = sigma) 
-# dpr <- raster(dp)
-# re_dpr <- resample(dpr, moth_counts, method = 'ngb')
-# kernel_moth <- mask(re_dpr, moth_counts) # mask to remove sea
-# plot(kernel_moth)
-# 
-# kern_dens <- function(data, sigma, rast){
-#   
-#   
-#   moth_ppp <- ppp(x = data[,c("lon")], y = data[,c("lat")],
-#                   owin(xrange = c(extent(rast)[1], extent(rast)[2]),
-#                        yrange = c(extent(rast)[3], extent(rast)[4])))
-#   
-#   
-#   dp <- density(moth_ppp, sigma = sigma) 
-#   dpr <- raster(dp)
-#   re_dpr <- resample(dpr, rast, method = 'ngb')
-#   kernel_moth <- mask(re_dpr, rast) # mask to remove sea
-#   
-# }
-# 
-# par(mfrow = c(2,2))
-# 
-# for(i in c(1, 10, 100, 20000)){
-#   
-#   out <- kern_dens(data = dfm, rast = moth_counts, sigma = i)
-#   
-#   plot(out, main = paste('grouping distance =', i))
-#   
-# }
-# 
-# 
-# for(i in c(1, 10, 100, 20000)){
-#   
-#   out <- kern_dens(data = dfm, rast = moth_counts, sigma = i)
-#   
-#   out_inv <- 1/out
-#   
-#   plot(log(out_inv), main = paste('inversed grouping distance =', i))
-#   
-# }
-# 
-# par(mfrow = c(1,1))
-
-```
-
 ## crop species to smaller scale
 
 
@@ -340,24 +205,6 @@ names(out_cropped) <- names
 
 
 
-```{r crop_moth_count}
-# 
-# inv_kern_50 <- 1/kern_dens(data = dfm, rast = species_stack[[1]][[1]], sigma = 50)
-# inv_kern_100 <- 1/kern_dens(data = dfm, rast = moth_counts, sigma = 100)
-# 
-# crop_kern_100 <- filter_distance(inv_kern_50, 
-#                                  location = location,
-#                                  method = 'buffer',
-#                                  distance = distance)
-# plot(crop_kern_100)
-# 
-# plot(inv_kern_100)
-
-```
-
-**That is not what I was expecting in terms of resolution - check the code.**
-
-
 
 ## different DECIDE score options
 
@@ -394,18 +241,6 @@ score_mult <- lapply(c(1:length(out_cropped)), FUN = function(x){
 
 names(score_mult) <- names(out_cropped)
 
-
-score_add <- lapply(c(1:length(out_cropped)), FUN = function(x){
-  
-  rm <- recommend_metric(prediction_raster = out_cropped[[x]]$predictions,
-                         error_raster = out_cropped[[x]]$quantile_var,
-                         method = 'additive')$additive
-  
-  return(rm)
-  
-})
-
-names(score_add) <- names(out_cropped)
 
 ```
 
@@ -562,19 +397,19 @@ plot(geo_weight_ukprev_5, main = '5. geo_mean weighted by national scarcity')
 
 ```
 
-```{r all_ps, fig.width=12}
+```{r all_ps, fig.width=12, meassage = F, warning=F}
 
 par(mfrow =c(2,4))
 
 plot(mean_2, main = '2. arithmetic mean')
-plot(arit_weight_max_3, main = '3. arith_mean weighted by max prob. pres.')
-plot(arit_weight_max30km_4, main = '4. arith_mean weighted by max prob. pres. 30km')
-plot(arit_weight_ukprev_5, main = '5. arith_mean weighted by national scarcity')
+plot(arit_weight_max_3, main = '3. arith_mean, wt max prob. pres.')
+plot(arit_weight_max30km_4, main = '4. arith_mean, wt max prob. pres. 30km')
+plot(arit_weight_ukprev_5, main = '5. arith_mean, wt national scarcity')
 
 plot(geo_mean_2, main = '2. geometric mean')
-plot(geo_weight_max_3, main = '3. geo_mean weighted by max prob. pres.')
-plot(geo_weight_max30km_4, main = '4. geo_mean weighted by max prob. pres. 30km')
-plot(geo_weight_ukprev_5, main = '5. geo_mean weighted by national scarcity')
+plot(geo_weight_max_3, main = '3. geo_mean, wt max prob. pres.')
+plot(geo_weight_max30km_4, main = '4. geo_mean, wt max prob. pres. 30km')
+plot(geo_weight_ukprev_5, main = '5. geo_mean, wt national scarcity')
 
 par(mfrow=c(1,1))
 
