@@ -167,6 +167,127 @@ kernel_moth <- mask(re_dpr, moth_counts)
 plot(kernel_moth)
 # contour(kernel_moth, add = TRUE)
 
+
+# 
+# ##  create a 'counts' raster layer  
+# dfm <- read.csv('/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Data/species_data/moth/DayFlyingMoths_East_Norths.csv')
+# head(dfm)
+# 
+# xy <- dfm[,c("lon","lat")]
+# spdf.moth <- SpatialPointsDataFrame(coords = xy, data = dfm,
+#                                     proj4string = CRS("+proj=tmerc +lat_0=49 +lon_0=-2 +k=0.9996012717 +x_0=400000 +y_0=-100000 +ellps=airy +units=m +no_defs")) 
+# 
+# # plot(spdf.moth) ## check with plot
+# 
+# ### create temporary raster to store number of records in each cell ###
+# moth_counts <- species_stack[[1]][[1]] # get a single raster
+# 
+# # make a raster of zeroes for input
+# moth_counts[!is.na(moth_counts)] <- 0
+# 
+# # get the cell index for each point and make a table:
+# counts = table(cellFromXY(moth_counts,spdf.moth))
+# 
+# # fill in the raster with the counts from the cell index:
+# moth_counts[as.numeric(names(counts))] <- counts
+# plot(moth_counts)
+# hist(moth_counts) ## loads of cells with no counts in so probably useless as a layer
+# 
+# ## counts for susan
+# # number of days of sighting of any species for each grid cell
+# # first get number of days of sighting 
+# 
+# km1_eff <- dfm %>% 
+#   group_by(lon,lat) %>% 
+#   summarise(effort = length(unique(date))) %>% 
+#   arrange(-effort)
+# 
+# r_df <- as.data.frame(moth_counts, xy=T)[,1:2]
+# 
+# r_df %>% 
+#   mutate(eff)
+# 
+# 
+# r_df$effort <- km1_eff$effort[match(paste0(r_df$x, r_df$y), paste0(km1_eff$lon, km1_eff$lat))]
+# 
+# 
+# km1_eff %>% 
+#   ggplot() +
+#   geom_histogram(aes(x = effort)) +
+#   theme_classic()
+# 
+# xy_eff <- km1_eff[,c("lon","lat")]
+# spdf.moth_eff <- SpatialPointsDataFrame(coords = xy_eff, data = km1_eff,
+#                                     proj4string = CRS("+proj=tmerc +lat_0=49 +lon_0=-2 +k=0.9996012717 +x_0=400000 +y_0=-100000 +ellps=airy +units=m +no_defs")) 
+# 
+# moth_eff_1km <- species_stack[[1]][[1]] # get a single raster
+# 
+# # make a raster of zeroes for input
+# moth_eff_1km[!is.na(moth_eff_1km)] <- 0
+# 
+# # get the cell index for each point and make a table:
+# effort = table(cellFromXY(moth_eff_1km,spdf.moth_eff))
+# hist(effort)
+# 
+# # fill in the raster with the counts from the cell index:
+# moth_eff_1km[as.numeric(names(effort))] <- effort
+# plot(moth_eff_1km)
+# 
+# round(dfm$lon[1])
+
+
+# 
+# sigma = 10000 # decide number of metres to calculate points over
+# 
+# moth_ppp <- ppp(x = dfm[,c("lon")], y = dfm[,c("lat")],
+#                 owin(xrange = c(extent(moth_counts)[1], extent(moth_counts)[2]),
+#                      yrange = c(extent(moth_counts)[3], extent(moth_counts)[4])))
+# 
+# 
+# dp <- stats::density(moth_ppp, sigma = sigma) 
+# dpr <- raster(dp)
+# re_dpr <- resample(dpr, moth_counts, method = 'ngb')
+# kernel_moth <- mask(re_dpr, moth_counts) # mask to remove sea
+# plot(kernel_moth)
+# 
+# kern_dens <- function(data, sigma, rast){
+#   
+#   
+#   moth_ppp <- ppp(x = data[,c("lon")], y = data[,c("lat")],
+#                   owin(xrange = c(extent(rast)[1], extent(rast)[2]),
+#                        yrange = c(extent(rast)[3], extent(rast)[4])))
+#   
+#   
+#   dp <- density(moth_ppp, sigma = sigma) 
+#   dpr <- raster(dp)
+#   re_dpr <- resample(dpr, rast, method = 'ngb')
+#   kernel_moth <- mask(re_dpr, rast) # mask to remove sea
+#   
+# }
+# 
+# par(mfrow = c(2,2))
+# 
+# for(i in c(1, 10, 100, 20000)){
+#   
+#   out <- kern_dens(data = dfm, rast = moth_counts, sigma = i)
+#   
+#   plot(out, main = paste('grouping distance =', i))
+#   
+# }
+# 
+# 
+# for(i in c(1, 10, 100, 20000)){
+#   
+#   out <- kern_dens(data = dfm, rast = moth_counts, sigma = i)
+#   
+#   out_inv <- 1/out
+#   
+#   plot(log(out_inv), main = paste('inversed grouping distance =', i))
+#   
+# }
+# 
+# par(mfrow = c(1,1))
+
 # 
 # # turn into a function
 # density_points <- function(sp_data, surface, agg_dist) {
@@ -181,6 +302,20 @@ plot(kernel_moth)
 # 
 # 
 # }
+
+# 
+# inv_kern_50 <- 1/kern_dens(data = dfm, rast = species_stack[[1]][[1]], sigma = 50)
+# inv_kern_100 <- 1/kern_dens(data = dfm, rast = moth_counts, sigma = 100)
+# 
+# crop_kern_100 <- filter_distance(inv_kern_50, 
+#                                  location = location,
+#                                  method = 'buffer',
+#                                  distance = distance)
+# plot(crop_kern_100)
+# 
+# plot(inv_kern_100)
+
+
 
 t <- stack(species_stack[[1]][[c(1, 4)]], kernel_moth)
 tdf <- as.data.frame(t)
