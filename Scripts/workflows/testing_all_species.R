@@ -8,11 +8,13 @@ library(doParallel)
 library(sf)
 library(spatialEco)
 
+
 source("Scripts/modules/filter_distance.R")
 source("Scripts/modules/recommend_rank.R")
 source("Scripts/modules/recommend_metric.R")
 source("Scripts/modules/recommend_agg_rank.R")
 source("Scripts/modules/extract_metric.R")
+
 
 
 #### Automated raster output loading
@@ -142,7 +144,9 @@ counts = table(cellFromXY(moth_counts,spdf.moth))
 # fill in the raster with the counts from the cell index:
 moth_counts[as.numeric(names(counts))] <- counts
 plot(moth_counts)
+
 hist(moth_counts) ## loads of cells with no counts in so probably useless as a layer
+
 
 
 #####     Kernel density analyses    #####
@@ -288,6 +292,7 @@ plot(kernel_moth)
 # 
 # par(mfrow = c(1,1))
 
+
 # 
 # # turn into a function
 # density_points <- function(sp_data, surface, agg_dist) {
@@ -303,6 +308,7 @@ plot(kernel_moth)
 # 
 # }
 
+
 # 
 # inv_kern_50 <- 1/kern_dens(data = dfm, rast = species_stack[[1]][[1]], sigma = 50)
 # inv_kern_100 <- 1/kern_dens(data = dfm, rast = moth_counts, sigma = 100)
@@ -314,6 +320,7 @@ plot(kernel_moth)
 # plot(crop_kern_100)
 # 
 # plot(inv_kern_100)
+
 
 
 
