@@ -20,12 +20,20 @@ library(viridis)
 library(patchwork)
 library(ggmap)
 
+
 source("../modules/filter_distance.R")
 source("../modules/recommend_rank.R")
 source("../modules/recommend_metric.R")
 source("../modules/recommend_agg_rank.R")
 source("../modules/extract_metric.R")
-```
+
+source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/modules/filter_distance.R")
+source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/modules/recommend_rank.R")
+source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/modules/recommend_metric.R")
+source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/modules/recommend_agg_rank.R")
+source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/modules/extract_metric.R")
+
+
 
 ```{r access_locs}
 

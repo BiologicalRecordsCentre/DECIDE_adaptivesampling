@@ -1,0 +1,469 @@
+---
+title: "DECIDE Score"
+author: "Thomas MM; Tom A"
+date: "4/8/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE, echo = FALSE}
+
+knitr::opts_chunk$set(echo = TRUE,
+                      message = FALSE)
+
+library(spatstat)
+library(tidyverse)
+library(raster)
+library(foreach)
+library(doParallel)
+
+
+source("../modules/filter_distance.R")
+source("../modules/recommend_rank.R")
+source("../modules/recommend_metric.R")
+source("../modules/recommend_agg_rank.R")
+source("../modules/extract_metric.R")
+
+
+```
+
+## Load species data
+
+```{r species_data, warning=FALSE}
+
+model = c('rf', 'lr', 'gam')
+taxa = 'moth'
+
+# get a list of all the species that appear in the outputs
+spp_names_lr <- unique(gsub(pattern="lr_SDMs_|_meanpred.grd|_quantilemaxmin.grd|_quantilerange.grd", replacement = '', 
+                            x = list.files(paste0('/data-s3/thoval/sdm_outputs/', taxa, '/lr'), pattern = '.grd')))
+
+spp_names_rf <- unique(gsub(pattern="rf_SDMs_|_meanpred.grd|_quantilemaxmin.grd|_quantilerange.grd", replacement = '', 
+                            x = list.files(paste0('/data-s3/thoval/sdm_outputs/', taxa, '/rf'), pattern = '.grd')))
+
+spp_names_gam <- unique(gsub(pattern="gam_SDMs_|_meanpred.grd|_quantilemaxmin.grd|_quantilerange.grd", replacement = '', 
+                             x = list.files(paste0('/data-s3/thoval/sdm_outputs/', taxa, '/gam'), pattern = '.grd')))
+
+names <- unique(c(spp_names_lr, spp_names_rf, spp_names_gam))
+
+# sdm outputs for each species
+species_stack <- list()
+
+# error outputs
+error_out <- list()
+
+for(i in 1:length(names)){
+  
+  print(names[i])
+  
+  # initiate model list within for loop so that it gets replaced when starting a new species
+  # otherwise we might get some weird overlaps
+  model_stack <- list()
+  errored_models <- list()
+  
+  for(m in 1:length(model)){
+    
+    check_models <- list.files(paste0('/data-s3/thoval/sdm_outputs/', taxa, '/', model[m]), 
+                               pattern = paste0(names[i]),
+                               full.names = TRUE)
+    
+    if(length(check_models)<=1){
+      
+      print(paste('!!!   model', model[m], 'failed for species', names[i], '  !!!'))
+      
+      errored_models[[m]] <- data.frame(taxa = taxa, 
+                                        species = names[i], 
+                                        model = model[m])
+      
+      next
+    }
+    
+    # mean predictions
+    mp <- list.files(paste0('/data-s3/thoval/sdm_outputs/', taxa, '/', model[m]), 
+                     pattern = paste0(names[i], "_meanpred.grd"),
+                     full.names = TRUE)
+    
+    mod_preds <- raster::stack(mp)
+    names(mod_preds) <- paste0(names[i], '_', model[m],'_mean_pred')
+    
+    
+    
+    # quantile min/max
+    mm <- list.files(paste0('/data-s3/thoval/sdm_outputs/', taxa, '/', model[m]), 
+                     pattern = paste0(names[i], "_quantilemaxmin.grd"),
+                     full.names = TRUE)
+    
+    qminmax <- raster::stack(mm)
+    names(qminmax) <- c(paste0(names[i], '_', model[m],'_min'), paste0(names[i], '_', model[m],'_max'))
+    
+    
+    # quantile range
+    qr <- list.files(paste0('/data-s3/thoval/sdm_outputs/', taxa, '/', model[m]), 
+                     pattern = paste0(names[i], "_quantilerange.grd"),
+                     full.names = TRUE)
+    
+    qrange <- raster::stack(qr)
+    names(qrange) <- paste0(names[i], '_', model[m], '_quantile_range')
+    
+    
+    # stack all from one model together
+    model_stack[[m]] <- raster::stack(mod_preds, qminmax, qrange)
+    
+  }
+  
+  # model_stack[sapply(model_stack,is.null)] <- raster(nrow=12500, 
+  #                                                    ncol=7000,
+  #                                                    crs="+proj=tmerc +lat_0=49 +lon_0=-2 +k=0.9996012717 +x_0=400000 +y_0=-100000 +ellps=airy +units=m +no_defs")
+  
+  # To combine them together need to remove the NULL raster layers (i.e. if a model hasn't worked)
+  model_stack <- model_stack[!sapply(model_stack,is.null)]
+  
+  species_stack[[i]] <- raster::stack(model_stack)
+  
+  # Output the models that failed too
+  error_out[[i]] <- do.call('rbind', errored_models) 
+  
+}
+
+# which models didn't work
+errors <- do.call('rbind', error_out)
+errors
+
+# name the list entries
+names(species_stack) <- names
+
+```
+
+
+## Crop species to smaller scale
+
+
+```{r cropping, warning=FALSE}
+
+# set location 
+location = c(-2.730696, 54.026759) # quernmore
+# location = c(-1.110557, 51.602436) # wallingford
+# location = c(-1.117329, 53.947566) # york
+
+# distances
+distance = 5000
+
+
+registerDoParallel(7)
+
+# out_cropped <- list()
+system.time(
+  out_cropped <- foreach(s = 1:length(species_stack)) %dopar% {
+    
+    print(s)
+    
+    sp <- species_stack[[s]]
+    
+    
+    # crop the prediction
+    crop_pred <- filter_distance(obj = subset(sp, grep(pattern = 'mean_pred',
+                                                       names(sp))),
+                                 method = 'buffer',
+                                 distance = distance,
+                                 location = location)
+    
+    # crop the error
+    crop_err <- filter_distance(obj = subset(sp, grep(pattern = 'quantile_range',
+                                                      names(sp))),
+                                method = 'buffer',
+                                distance = distance,
+                                location = location)
+    
+    if(length(names(crop_pred))>1){
+      # get the mean
+      m_pred_av <- calc(crop_pred,
+                        mean, na.rm = T)
+      names(m_pred_av) <- 'predictions'
+      
+      
+      m_quant_av <- calc(crop_err,
+                         mean, na.rm = T)
+      names(m_quant_av) <- 'error'
+    } else {
+      
+      m_pred_av <- crop_err
+      m_quant_av <- crop_err
+      
+    }
+    
+    out_rasts <- list(m_pred_av, m_quant_av)
+    names(out_rasts) <- c('predictions', 'quantile_var')
+    
+    return(out_rasts)
+    
+  }
+)
+
+registerDoSEQ()
+
+names(out_cropped) <- names
+
+```
+
+
+## DECIDE Score, addition vs multiply
+
+### Score for a single species
+
+*Adscita_geryon*
+
+
+```{r score, fig.height=8, fig.width=10, warning=FALSE}
+
+score <- recommend_metric(prediction_raster = out_cropped$Adscita_geryon$predictions,
+                          error_raster = out_cropped$Adscita_geryon$quantile_var)
+
+par(mfrow = c(2,2))
+plot(out_cropped$Adscita_geryon$predictions, main = 'prediction')
+plot(out_cropped$Adscita_geryon$quantile_var, main = 'variation')
+
+plot(score$multiply, main = names(score)[1])
+plot(score$additive, main = names(score)[2])
+par(mfrow = c(1,1))
+
+
+```
+
+
+```{r score_mult_spp, warning = FALSE}
+
+score_mult <- lapply(c(1:length(out_cropped)), FUN = function(x){
+  
+  rm <- recommend_metric(prediction_raster = out_cropped[[x]]$predictions,
+                         error_raster = out_cropped[[x]]$quantile_var,
+                         method = 'multiply')$multiply
+  
+  return(rm)
+  
+})
+
+names(score_mult) <- names(out_cropped)
+
+
+# get the cropped probability of presence
+preds <- stack(lapply(1:length(out_cropped), FUN = function(x) out_cropped[[x]]$predictions))
+names(preds) <- names(out_cropped)
+
+# get the cropped variation
+var <- stack(lapply(1:length(out_cropped), FUN = function(x) out_cropped[[x]]$quantile_var))
+names(var) <- names(out_cropped)
+
+wt_decide <- raster::weighted.mean(x = preds, 
+                                   w = var)
+
+plot(wt_decide)
+
+
+```
+
+
+Makes most sense to use the multiplicative method of combining probability of presence and variation layers.
+
+Join the different species together by averaging the decide score weighted by the mean probability of presence across the subsetted area to remove species with low prob of being there... Or maybe weight by the maximum probability of presence so that species only present in a very specific habitat aren't too downweighted 
+
+## How to combine DECIDE score across species?
+
+Determining how best to produce the DECIDE score is difficult because it can essentially be whatever we want. Providing a metric which is evaluated across species probably makes most sense; this will be easier for any user to digest and does not leave us open to too much criticism in terms of recorders claiming the models are wrong. A DECIDE score that is a combination of metrics from individual species is probably the way forward, but determining how to combine them needs careful thought.
+
+Multiple potential options to test:
+
+1. take sum across species
+2. take the mean across species
+3. weighted average based on maximum probability of presence within region
+4. weighted average based on maximum probability of presence within larger region (~30km?)
+5. weighted average based on national scarcity - number of unique grid cells a species occurs in
+
+Want to compare all these possibilities using the arithmetic mean and geometric mean.
+
+### Just a couple of thoughts
+
+Summing the DECIDE scores across species probably isn't very meaningful, but just wanted to show what it looked like. Again, taking the arithmetic mean across species, without any weightings, will mean that common species will have a larger impact on the "look" of the DECIDE Score across the region. Combining metrics across species using weights seems like a good option. We want to combine them in such a way that:
+
+- rare species (locally, nationally or both[?]) are not downweighted
+* solution: weighted by national scarcity
+* solution: proportion of cells with > than X probability of presence in a region? - this would downweight habitat specialists
+- common species are not upweighted unintentionally and are maybe even downweighted
+- habitat specialists are not downweighted compared to generalists
+* solution: Weight the metrics for each species by the maximum probability of presence in the area
+- priority given to species of conservation concern?
+* this is moving away from areas that improve the models the most
+
+Weighted by max probability of presence means that species that are most likely to be present in an area will be upweighted compared to species that are less likely. Are we more interested in species that have high uncertainty than probability of presence? If we are interested in improving the models the most, this will probably be by sending people to areas with the highest uncertainty...
+
+
+6. weighted average based on maximum uncertainty within region
+
+
+Weighted means by the probability of presence within the area is then specific to that area, which means the DECIDE score wouldn't be comparable across the whole UK (I think)
+
+'National scarcity' is calculated by looking at the unique number of grid cells that a species appears in and dividing it by the total  number of unique grid cells that have been sampled (rather than the total number of grid cells in the UK). However, this might not be sensible because this could, in some situations, upweight species that are extremely unlikely to be present in an area. For example, a species that only occurs in the Scottish Highlands would be very scarce nationally and would never be found in the south. However, because all species have a probability of presence in every grid cell, that species would get strongly upweighted...
+
+Geometric mean might also not be the best because we want people to be spread out (geometric mean always <= arithmetic mean)
+
+National scarcity doesn't make sense because it means that species that are very unlikely to be present in an area are upweighted.
+
+Does it make sense to weight the average by something that makes up the score itself, i.e., the score is probability of presence*var and the mean across species is weighted by the max probability of presence? I guess technically isn't the same thing but is this a problem?
+
+Is it better just to take the mean across all cells, without any weightings? This means that each species will be given the same weighting in the final value of the cell.. 
+
+What about combining species by taking the weighted average of the probability of presence layers and using the quantile variation layer as a weight? I.e. each cell would be weighted by its corresponding variation in the same cell...
+* means we can't access the decide score of each species?
+* 
+
+
+```{r 1_comb_arithmetic, warning = F}
+
+# get the cropped probability of presence
+preds <- stack(lapply(1:length(out_cropped), FUN = function(x) out_cropped[[x]]$predictions))
+names(preds) <- names(out_cropped)
+
+# get the cropped variation
+var <- stack(lapply(1:length(out_cropped), FUN = function(x) out_cropped[[x]]$quantile_var))
+names(var) <- names(out_cropped)
+
+
+## 1.
+sum_1 <- calc(stack(score_mult), sum)
+plot(sum_1, main = '1. Sum')
+
+## 2.
+mean_2 <- calc(stack(score_mult), mean)
+# plot(mean_2, main = '2. arithmetic mean')
+
+## 3. 
+arit_weight_max_3 <- weighted.mean(stack(score_mult), cellStats(stack(preds), max)) # the score_mult and preds stacks are in the same species order
+# plot(arit_weight_max_3, main = '3. arith_mean weighted by max prob. pres.')
+
+## 4.
+# function to get the corresponding layer of interest in a raster stack
+# takes a list of stacks and the layer name to use
+get_layer <- function(layer_stack, pattern) return(lapply(layer_stack, FUN = function(x) subset(x, grep(pattern = pattern, names(x)))))
+
+preds_uk <- get_layer(species_stack, pattern = 'mean_pred') # get the mean preds layer
+
+# crop the uk-wide predictions to 30km around region
+crop_30 <- mcmapply(preds_uk, FUN = function(x) filter_distance(obj = x, method = 'buffer', distance = 30000, location = location))
+
+# just get the mean across all models - because I need to transfer the new AUC-combined models across
+preds_30km_mn <- sapply(1:length(crop_30), FUN = function(x) if(nlayers(crop_30[[x]])==1) {crop_30[[x]]} else {calc(crop_30[[x]], mean, na.rm = T)})
+
+arit_weight_max30km_4 <- weighted.mean(stack(score_mult), cellStats(stack(preds_30km_mn), max)) # do the mean weighted by the max probability of presence within 30km
+# plot(arit_weight_max30km_4, main = '4. arith_mean weighted by max prob. pres. 30km')
+
+## 5. 
+# function to rescale between 0 and 1
+range01 <- function(x, ...){(x - min(x, ...)) / (max(x, ...) - min(x, ...))}
+
+# first, get scarcity
+dfm_prev <- dfm %>% group_by(sp_n) %>% 
+  mutate(n_cells = length(unique(TO_GRIDREF))) %>% # number of unique locations
+  ungroup() %>% 
+  mutate(prev = n_cells/length(unique(TO_GRIDREF))) %>% # get the prevalence of each species relative to the total number of grid cells sampled
+  dplyr::select(sp_n, n_cells, prev) %>% # select only columns of interest
+  distinct() %>% 
+  mutate(sp_n = gsub(pattern = ' ', replacement = '_', x = sp_n))
+
+# dfm_prev
+
+# get weightings first by matching names of list entries to those in data frame
+ukprev_wts <- sapply(1:length(score_mult), FUN = function(x) dfm_prev$prev[dfm_prev$sp_n==names(score_mult)[x]])
+
+# 1.000001-ukprev_wts # get the inverse weights to give least prevalent species highest rating. Add a tiny bit so the most abundant species doesn't get a 0-weight
+
+arit_weight_ukprev_5 <- weighted.mean(stack(score_mult), 1.000001-ukprev_wts)
+# plot(arit_weight_ukprev_5, main = '5. arith_mean weighted by national scarcity')
+
+## 6.
+arit_weight_maxvar_6 <- weighted.mean(stack(score_mult), cellStats(stack(var), max)) # the score_mult and var stacks are in the same species order
+# plot(arit_weight_maxvar_6)
+
+## 7.
+arit_weight_meanvar_7 <- weighted.mean(stack(score_mult), cellStats(stack(var), mean)) # the score_mult and var stacks are in the same species order
+# plot(arit_weight_meanvar_7)
+
+```
+
+
+
+
+
+```{r geo_mean, warning = FALSE}
+
+# unweighted geometric mean
+gm_mean = function(x, na.rm=FALSE){
+  exp(sum(log(x[x > 0]), na.rm=na.rm) / length(x))
+}
+
+# weighted geometric mean
+weighted.geomean <- function(x, w, na.rm = FALSE, ...){
+  return(prod(x^w, na.rm = na.rm, ...)^(1/sum(w, na.rm = na.rm, ...)))
+}
+
+## 1.
+sum_1 <- calc(stack(score_mult), sum)
+# plot(sum_1, main = '1. Sum')
+
+## 2. 
+geo_mean_2 <- calc(stack(score_mult), gm_mean)
+# plot(geo_mean_2, main = '2. geometric mean')
+
+## 3. 
+geo_weight_max_3 <- weighted.geomean(stack(score_mult), cellStats(stack(preds), max))
+# plot(geo_weight_max_3, main = '3. geo_mean weighted by max prob. pres.')
+
+## 4.
+geo_weight_max30km_4 <- weighted.geomean(stack(score_mult), cellStats(stack(preds_30km_mn), max)) # do the mean weighted by the max probability of presence within 30km
+# plot(geo_weight_max30km_4, main = '4. geo_mean weighted by max prob. pres. 30km')
+
+## 5. 
+# same weightings as above
+# calculate weighted geometric mean
+geo_weight_ukprev_5 <- weighted.geomean(stack(score_mult), 1.000001-ukprev_wts)
+# plot(geo_weight_ukprev_5, main = '5. geo_mean weighted by national scarcity')
+
+## 6.
+geo_weight_maxvar_6 <- weighted.geomean(stack(score_mult), cellStats(stack(var), max)) # the score_mult and var stacks are in the same species order
+# plot(geo_weight_maxvar_6)
+
+## 7.
+geo_weight_meanvar_7 <- weighted.geomean(stack(score_mult), cellStats(stack(var), mean)) # the score_mult and var stacks are in the same species order
+# plot(geo_weight_meanvar_7)
+
+```
+
+
+```{r all_ps, fig.height = 7, fig.width=20, meassage = F, warning=F}
+
+par(mfrow =c(2,6))
+
+plot(mean_2, main = '2. arithmetic mean')
+plot(arit_weight_max_3, main = '3. arith_mean, wt max prob. pres.')
+plot(arit_weight_max30km_4, main = '4. arith_mean, wt max prob. pres. 30km')
+plot(arit_weight_ukprev_5, main = '5. arith_mean, wt national scarcity')
+plot(arit_weight_maxvar_6, main = '6. arit_mean, wt max var.')
+plot(arit_weight_meanvar_7, main = '6. arit_mean, wt mean var.')
+
+
+plot(geo_mean_2, main = '2. geometric mean')
+plot(geo_weight_max_3, main = '3. geo_mean, wt max prob. pres.')
+plot(geo_weight_max30km_4, main = '4. geo_mean, wt max prob. pres. 30km')
+plot(geo_weight_ukprev_5, main = '5. geo_mean, wt national scarcity')
+plot(geo_weight_maxvar_6, main = '6. geo_mean, wt max var.')
+plot(geo_weight_meanvar_7, main = '6. geo_mean, wt mean var.')
+
+par(mfrow=c(1,1))
+
+```
+
+Taking the weighted geometric mean results in some areas having a 0 value, which would be very bad to have in the final app.
+
+
+
+
+
+
+
