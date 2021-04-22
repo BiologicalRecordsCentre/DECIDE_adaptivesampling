@@ -8,11 +8,11 @@ library(doParallel)
 library(sf)
 library(spatialEco)
 
-source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/modules/filter_distance.R")
-source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/modules/recommend_rank.R")
-source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/modules/recommend_metric.R")
-source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/modules/recommend_agg_rank.R")
-source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/modules/extract_metric.R")
+source("Scripts/modules/filter_distance.R")
+source("Scripts/modules/recommend_rank.R")
+source("Scripts/modules/recommend_metric.R")
+source("Scripts/modules/recommend_agg_rank.R")
+source("Scripts/modules/extract_metric.R")
 
 
 #### Automated raster output loading
