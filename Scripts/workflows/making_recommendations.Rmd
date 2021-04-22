@@ -1,7 +1,7 @@
 ---
 title: "Workflow for making recommendations"
 author: "Thomas MM.; Tom A."
-date: "2/3/2021"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: html_document
 ---
 
@@ -21,14 +21,10 @@ library(tidyverse) # this is a very old version even though newer version is on 
 library(reshape2)
 
 ## load the functions
-
-source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/modules/filter_distance.R")
-source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/modules/recommend_rank.R")
-source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/modules/recommend_metric.R")
-source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/modules/recommend_agg_rank.R")
-
-
-
+source("../modules/filter_distance.R")
+source("../modules/recommend_rank.R")
+source("../modules/recommend_metric.R")
+source("../modules/recommend_agg_rank.R")
 ```
 
 We're going to run through the process of making recommendations to users based on their location. There are few things that need working out, including the function names and how to incorporate the outputs from multiple different models for each species. Currently, this only works on random forest models for a subset of species that I could easily download. This markdown document will be updated as and when the functions get updated. The general proces will be as follows:
