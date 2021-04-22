@@ -47,8 +47,21 @@ filter_distance <- function(obj,
     # plot(raster)
     # plot(buffed, add = T)
     
-    # extract the masked extent for raster
-    if(class(obj)[1] == 'RasterLayer'){
+    
+    if (is.null(obj)){ # stop if object is NULL and return NULL
+      
+      warning('!!  Cropping object is empty, returning NULL output')
+      
+      c_buf <- NULL
+      
+    } else if(class(obj)[1] != 'sf' & 
+              class(obj)[1] != 'RasterLayer' & 
+              class(obj)[1] != 'RasterStack') {
+      
+      stop(paste('!!  object must be of class "Raster*" or "sf". Current class is:', class(obj)))
+      
+    } else if(class(obj)[1] == 'RasterLayer' | class(obj)[1] == 'RasterStack'){ # extract the masked extent for raster
+      
       c_buf <- crop(obj, buffed) # crop the raster - creates a square extent 
       masked_area <- mask(c_buf, buffed)
       # plot(masked_area) # then mask it to get only the area within the 'travel distance'
@@ -56,16 +69,33 @@ filter_distance <- function(obj,
       
       return(masked_area) # return only the masked region x distance from the 'location'
       
-    } else if (class(obj)[1] == 'sf'){
-      c_buf <- st_intersection(obj, buffed) # crop the sf layer
+    } else if (class(obj)[1] == 'sf' && 
+               any(unique(st_geometry_type(obj)) == 'LINESTRING') |
+               any(unique(st_geometry_type(obj)) == 'MULTILINESTRING')){
+      c_buf <- st_intersection(obj, 
+                               buffed) # crop the sf layer
       
       return(c_buf) # return only the masked region x distance from the 'location'
       
-    } else(
-      stop(paste('object must be of class "RasterLayer" or "sf". Current class is:', class(obj)))
-    )
+    } else if(class(obj)[1] == 'sf' && 
+              (any(unique(st_geometry_type(obj)) == 'POLYGON') | 
+               any(unique(st_geometry_type(obj)) == 'MULTIPOLYGON'))){
+      
+      c_buf <- st_intersection(sf::st_buffer(obj, dist = 0), # this is a hack to get around shapes that self-intersect. Works for some reason?!
+                               buffed) # crop the sf layer
+    } 
     
   }
   
 }
+
+
+# 
+# ap_merge <- st_read('/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/rowmaps_footpathbridleway/rowmaps_footpathbridleway/ALL_PATHS_MERGED_long.shp')
+# st_crs(ap_merge) <- 27700
+
+# filter_distance(obj = obj,
+#                 method = 'buffer',
+#                 distance = 5000)
+
 
