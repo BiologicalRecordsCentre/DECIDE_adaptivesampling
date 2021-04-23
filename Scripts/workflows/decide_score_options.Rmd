@@ -24,6 +24,18 @@ source("../modules/recommend_agg_rank.R")
 source("../modules/extract_metric.R")
 
 
+# unweighted geometric mean
+gm_mean = function(x, na.rm=FALSE){
+  exp(sum(log(x[x > 0]), na.rm=na.rm) / length(x))
+}
+
+# weighted geometric mean
+weighted.geomean <- function(x, w, na.rm = FALSE, ...){
+  return(prod(x^w, na.rm = na.rm, ...)^(1/sum(w, na.rm = na.rm, ...)))
+}
+
+
+
 ```
 
 ## Load species data
@@ -34,6 +46,7 @@ model = c('rf', 'lr', 'gam')
 taxa = 'moth'
 
 # get a list of all the species that appear in the outputs
+# these are files on the object store which is freely accessible to anyone
 spp_names_lr <- unique(gsub(pattern="lr_SDMs_|_meanpred.grd|_quantilemaxmin.grd|_quantilerange.grd", replacement = '', 
                             x = list.files(paste0('/data-s3/thoval/sdm_outputs/', taxa, '/lr'), pattern = '.grd')))
 
@@ -255,7 +268,11 @@ names(var) <- names(out_cropped)
 wt_decide <- raster::weighted.mean(x = preds, 
                                    w = var)
 
-plot(wt_decide)
+plot(wt_decide, main = 'arith mean, weighted by uncertainty')
+
+geowt_decide <- weighted.geomean(x = preds,
+                                 w = var)
+plot(geowt_decide, main = 'geo mean, weighted by uncertainty')
 
 
 ```
@@ -392,16 +409,6 @@ arit_weight_meanvar_7 <- weighted.mean(stack(score_mult), cellStats(stack(var), 
 
 
 ```{r geo_mean, warning = FALSE}
-
-# unweighted geometric mean
-gm_mean = function(x, na.rm=FALSE){
-  exp(sum(log(x[x > 0]), na.rm=na.rm) / length(x))
-}
-
-# weighted geometric mean
-weighted.geomean <- function(x, w, na.rm = FALSE, ...){
-  return(prod(x^w, na.rm = na.rm, ...)^(1/sum(w, na.rm = na.rm, ...)))
-}
 
 ## 1.
 sum_1 <- calc(stack(score_mult), sum)
