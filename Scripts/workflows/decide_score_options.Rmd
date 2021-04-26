@@ -5,6 +5,8 @@ date: "4/8/2021"
 output: html_document
 ---
 
+
+
 ```{r setup, include=FALSE, echo = FALSE}
 
 knitr::opts_chunk$set(echo = TRUE,
@@ -38,7 +40,10 @@ weighted.geomean <- function(x, w, na.rm = FALSE, ...){
 
 ```
 
+
 ## Load species data
+
+This code loads in data from my directory in the object store which is publicly available (as long as your notebook has access to the object store).
 
 ```{r species_data, warning=FALSE}
 
@@ -153,8 +158,8 @@ names(species_stack) <- names
 ```{r cropping, warning=FALSE}
 
 # set location 
-location = c(-2.730696, 54.026759) # quernmore
-# location = c(-1.110557, 51.602436) # wallingford
+# location = c(-2.730696, 54.026759) # quernmore
+location = c(-1.110557, 51.602436) # wallingford
 # location = c(-1.117329, 53.947566) # york
 
 # distances
@@ -274,17 +279,16 @@ geowt_decide <- weighted.geomean(x = preds,
                                  w = var)
 plot(geowt_decide, main = 'geo mean, weighted by uncertainty')
 
+plot(score$multiply, main = names(score)[1])
 
 ```
 
 
 Makes most sense to use the multiplicative method of combining probability of presence and variation layers.
 
-Join the different species together by averaging the decide score weighted by the mean probability of presence across the subsetted area to remove species with low prob of being there... Or maybe weight by the maximum probability of presence so that species only present in a very specific habitat aren't too downweighted 
-
 ## How to combine DECIDE score across species?
 
-Determining how best to produce the DECIDE score is difficult because it can essentially be whatever we want. Providing a metric which is evaluated across species probably makes most sense; this will be easier for any user to digest and does not leave us open to too much criticism in terms of recorders claiming the models are wrong. A DECIDE score that is a combination of metrics from individual species is probably the way forward, but determining how to combine them needs careful thought.
+We have decided to prodcue a metric which is evaluated across species; this will be easier for any user to digest and does not leave us open to too much criticism in terms of recorders claiming the models are wrong. A DECIDE score that is a combination of metrics from individual species is probably the way forward, but determining how to combine them needs careful thought.
 
 Multiple potential options to test:
 
@@ -298,16 +302,17 @@ Want to compare all these possibilities using the arithmetic mean and geometric 
 
 ### Just a couple of thoughts
 
-Summing the DECIDE scores across species probably isn't very meaningful, but just wanted to show what it looked like. Again, taking the arithmetic mean across species, without any weightings, will mean that common species will have a larger impact on the "look" of the DECIDE Score across the region. Combining metrics across species using weights seems like a good option. We want to combine them in such a way that:
+Summing the DECIDE scores across species probably isn't very meaningful, but just wanted to show what it looked like. Again, taking the arithmetic mean across species, without any weightings, will mean that common species will have a larger impact on the DECIDE Score in the region. Combining metrics across species using weights seems like a good option. We want to combine them in such a way that:
 
 - rare species (locally, nationally or both[?]) are not downweighted
-* solution: weighted by national scarcity
-* solution: proportion of cells with > than X probability of presence in a region? - this would downweight habitat specialists
+  * solution: weighted by national scarcity
+  * solution: proportion of cells with > than X probability of presence in a region? - this would downweight habitat specialists and is crap anyway
+  * solution: Find only species that have a greater than X prob presence in a region. Find the ones with the fewest cells with 
 - common species are not upweighted unintentionally and are maybe even downweighted
 - habitat specialists are not downweighted compared to generalists
-* solution: Weight the metrics for each species by the maximum probability of presence in the area
+  * solution: Weight the metrics for each species by the maximum probability of presence in the area
 - priority given to species of conservation concern?
-* this is moving away from areas that improve the models the most
+  * this is moving away from areas that improve the models the most
 
 Weighted by max probability of presence means that species that are most likely to be present in an area will be upweighted compared to species that are less likely. Are we more interested in species that have high uncertainty than probability of presence? If we are interested in improving the models the most, this will probably be by sending people to areas with the highest uncertainty...
 
@@ -328,11 +333,13 @@ Does it make sense to weight the average by something that makes up the score it
 Is it better just to take the mean across all cells, without any weightings? This means that each species will be given the same weighting in the final value of the cell.. 
 
 What about combining species by taking the weighted average of the probability of presence layers and using the quantile variation layer as a weight? I.e. each cell would be weighted by its corresponding variation in the same cell...
-* means we can't access the decide score of each species?
-* 
+  * means we can't access the decide score of each species?
+  * 
 
 
 ```{r 1_comb_arithmetic, warning = F}
+
+dfm <- read.csv('../../Data/species_data/moth/DayFlyingMoths_East_Norths.csv')
 
 # get the cropped probability of presence
 preds <- stack(lapply(1:length(out_cropped), FUN = function(x) out_cropped[[x]]$predictions))
