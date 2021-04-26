@@ -25,6 +25,7 @@ source("../modules/filter_distance.R")
 source("../modules/recommend_rank.R")
 source("../modules/recommend_metric.R")
 source("../modules/recommend_agg_rank.R")
+
 ```
 
 We're going to run through the process of making recommendations to users based on their location. There are few things that need working out, including the function names and how to incorporate the outputs from multiple different models for each species. Currently, this only works on random forest models for a subset of species that I could easily download. This markdown document will be updated as and when the functions get updated. The general proces will be as follows:
@@ -65,7 +66,7 @@ all_spp <- list()
 all_spp_name <- c()
 
 # file list
-files_list <- list.files('/data/notebooks/rstudio-constraintlayers/Data/raw_data/subset_species_ranfor_29_01_21/',
+files_list <- list.files('/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/subset_species_ranfor_29_01_21/',
                          full.names = T)
 
 system.time(
