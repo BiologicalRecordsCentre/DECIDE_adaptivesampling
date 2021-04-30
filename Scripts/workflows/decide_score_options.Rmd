@@ -26,6 +26,8 @@ source("../modules/recommend_agg_rank.R")
 source("../modules/extract_metric.R")
 
 
+options(col=viridis(n = 1e4))
+
 # unweighted geometric mean
 gm_mean = function(x, na.rm=FALSE){
   exp(sum(log(x[x > 0]), na.rm=na.rm) / length(x))
@@ -279,7 +281,14 @@ geowt_decide <- weighted.geomean(x = preds,
                                  w = var)
 plot(geowt_decide, main = 'geo mean, weighted by uncertainty')
 
-plot(score$multiply, main = names(score)[1])
+plot(score$multiply, main = names(score)[1],
+               col=viridis(n = length(unique(score$multiply))))
+
+plot(mean(preds), main = 'arith mean prob. pres',
+               col=viridis(n = length(unique(preds))))
+plot(calc(preds, gm_mean), main = 'geo mean prob. pres')
+
+
 
 ```
 
@@ -288,9 +297,7 @@ Makes most sense to use the multiplicative method of combining probability of pr
 
 ## How to combine DECIDE score across species?
 
-We have decided to prodcue a metric which is evaluated across species; this will be easier for any user to digest and does not leave us open to too much criticism in terms of recorders claiming the models are wrong. A DECIDE score that is a combination of metrics from individual species is probably the way forward, but determining how to combine them needs careful thought.
-
-Multiple potential options to test:
+We have decided to prodcue a metric which is evaluated across species; this will be easier for any user to digest and does not leave us open to too much criticism in terms of recorders claiming the models are wrong. Multiple potential options to test:
 
 1. take sum across species
 2. take the mean across species
@@ -306,11 +313,10 @@ Summing the DECIDE scores across species probably isn't very meaningful, but jus
 
 - rare species (locally, nationally or both[?]) are not downweighted
   * solution: weighted by national scarcity
-  * solution: proportion of cells with > than X probability of presence in a region? - this would downweight habitat specialists and is crap anyway
-  * solution: Find only species that have a greater than X prob presence in a region. Find the ones with the fewest cells with 
+ 
 - common species are not upweighted unintentionally and are maybe even downweighted
 - habitat specialists are not downweighted compared to generalists
-  * solution: Weight the metrics for each species by the maximum probability of presence in the area
+   * solution: Find only species that have a greater than X prob presence in a region. Find the ones with the fewest cells with their value above a certain (high) threshold 
 - priority given to species of conservation concern?
   * this is moving away from areas that improve the models the most
 
@@ -320,13 +326,11 @@ Weighted by max probability of presence means that species that are most likely 
 6. weighted average based on maximum uncertainty within region
 
 
-Weighted means by the probability of presence within the area is then specific to that area, which means the DECIDE score wouldn't be comparable across the whole UK (I think)
+Weighted means by the probability of presence within the area is then specific to that area, which means the DECIDE score wouldn't be comparable across the whole UK (I think).
 
-'National scarcity' is calculated by looking at the unique number of grid cells that a species appears in and dividing it by the total  number of unique grid cells that have been sampled (rather than the total number of grid cells in the UK). However, this might not be sensible because this could, in some situations, upweight species that are extremely unlikely to be present in an area. For example, a species that only occurs in the Scottish Highlands would be very scarce nationally and would never be found in the south. However, because all species have a probability of presence in every grid cell, that species would get strongly upweighted...
+'National scarcity' is calculated by looking at the unique number of grid cells that a species appears in and dividing it by the total number of unique grid cells that have been sampled (rather than the total number of grid cells in the UK). However, this might not be sensible because this could, in some situations, upweight species that are extremely unlikely to be present in an area. For example, a species that only occurs in the Scottish Highlands would be very scarce nationally and would never be found in the south. However, because all species have a probability of presence in every grid cell in the UK, that species would get strongly upweighted in the models...
 
 Geometric mean might also not be the best because we want people to be spread out (geometric mean always <= arithmetic mean)
-
-National scarcity doesn't make sense because it means that species that are very unlikely to be present in an area are upweighted.
 
 Does it make sense to weight the average by something that makes up the score itself, i.e., the score is probability of presence*var and the mean across species is weighted by the max probability of presence? I guess technically isn't the same thing but is this a problem?
 
@@ -473,8 +477,69 @@ par(mfrow=c(1,1))
 
 ```
 
-Taking the weighted geometric mean results in some areas having a 0 value, which would be very bad to have in the final app.
+Taking the weighted geometric mean results in some areas having a 0 value, which would be very bad to have in the final app. To stop this could add a tiny bit to the values before multiplying them...
 
+
+geometric mean and constant
+
+```{r geo_mean, warning = FALSE}
+
+constant <- 1e-5
+
+## 1.
+sum_1 <- calc(stack(score_mult), sum)
+# plot(sum_1, main = '1. Sum')
+
+## 2. 
+geo_mean_2_cons <- calc(stack(score_mult)+constant, gm_mean)
+# plot(geo_mean_2, main = '2. geometric mean')
+
+## 3. 
+geo_weight_max_3_cons <- weighted.geomean(stack(score_mult)+constant, cellStats(stack(preds), max)+constant)
+# plot(geo_weight_max_3, main = '3. geo_mean weighted by max prob. pres.')
+
+## 4.
+geo_weight_max30km_4_cons <- weighted.geomean(stack(score_mult)+constant, cellStats(stack(preds_30km_mn), max)+constant) # do the mean weighted by the max probability of presence within 30km
+# plot(geo_weight_max30km_4, main = '4. geo_mean weighted by max prob. pres. 30km')
+
+## 5. 
+# same weightings as above
+# calculate weighted geometric mean
+geo_weight_ukprev_5_cons <- weighted.geomean(stack(score_mult)+constant, 1.000001-ukprev_wts+constant)
+# plot(geo_weight_ukprev_5, main = '5. geo_mean weighted by national scarcity')
+
+## 6.
+geo_weight_maxvar_6_cons <- weighted.geomean(stack(score_mult)+constant, cellStats(stack(var), max)+constant) # the score_mult and var stacks are in the same species order
+# plot(geo_weight_maxvar_6)
+
+## 7.
+geo_weight_meanvar_7_cons <- weighted.geomean(stack(score_mult)+constant, cellStats(stack(var), mean)+constant) # the score_mult and var stacks are in the same species order
+# plot(geo_weight_meanvar_7)
+
+```
+
+
+```{r all_ps, fig.height = 7, fig.width=20, meassage = F, warning=F}
+
+par(mfrow =c(2,6))
+
+plot(geo_mean_2, main = '2. geometric mean')
+plot(geo_weight_max_3, main = '3. geo_mean, wt max prob. pres.')
+plot(geo_weight_max30km_4, main = '4. geo_mean, wt max prob. pres. 30km')
+plot(geo_weight_ukprev_5, main = '5. geo_mean, wt national scarcity')
+plot(geo_weight_maxvar_6, main = '6. geo_mean, wt max var.')
+plot(geo_weight_meanvar_7, main = '6. geo_mean, wt mean var.')
+
+plot(geo_mean_2_cons, main = '2. geometric mean + constant')
+plot(geo_weight_max_3_cons, main = '3. geo_mean, wt max prob. pres. + constant')
+plot(geo_weight_max30km_4_cons, main = '4. geo_mean, wt max prob. pres. 30km + constant')
+plot(geo_weight_ukprev_5_cons, main = '5. geo_mean, wt national scarcity + constant')
+plot(geo_weight_maxvar_6_cons, main = '6. geo_mean, wt max var. + constant')
+plot(geo_weight_meanvar_7_cons, main = '6. geo_mean, wt mean var. + constant')
+
+par(mfrow=c(1,1))
+
+```
 
 
 
