@@ -55,7 +55,7 @@ recommend_rank <- function(predict_err_raster,
   # head(comb_df)
   
   # to get the rank need to use 'quo()' argument to create a conditional 'group_by()' statement later
-  if(method == 'additive'){
+  if(method != 'species_rank'){
     quo_var <- quo() # if ranking across all species, don't need to 'group_by()' anything, so need an empty variable
   } else if(method == 'species_rank'){
     # if want the rank for each species separately, need to 'group_by' species
