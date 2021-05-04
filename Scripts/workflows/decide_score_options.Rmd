@@ -1,17 +1,20 @@
 ---
 title: "DECIDE Score"
-author: "Thomas MM; Tom A"
+author: "Thomas MM"
 date: "4/8/2021"
 output: html_document
 ---
 
 
+The point of this document is to explore some potential options for creating a DECIDE score across all moth species. All plots are centred around Wallingford with a 5k radius. Models aren't the most up-to-date either, they're currently using data with replicates in each cell and aren't weighted by AUC values when combined.
 
-```{r setup, include=FALSE, echo = FALSE}
+
+```{r setup, include=F, echo = FALSE}
 
 knitr::opts_chunk$set(echo = TRUE,
                       message = FALSE,
-                      include = FALSE)
+                      warning=FALSE,
+                      include = T)
 
 library(spatstat)
 library(tidyverse)
@@ -44,11 +47,11 @@ weighted.geomean <- function(x, w, na.rm = FALSE, ...){
 ```
 
 
-## Load species data
+<!-- ## Load species data -->
 
-This code loads in data from my directory in the object store which is publicly available (as long as your notebook has access to the object store).
+<!-- This code loads in data from my directory in the object store which is publicly available (as long as your notebook has access to the object store). -->
 
-```{r species_data, warning=FALSE}
+```{r species_data, echo=F, warning=FALSE, include=F}
 
 model = c('rf', 'lr', 'gam')
 taxa = 'moth'
@@ -155,10 +158,10 @@ names(species_stack) <- names
 ```
 
 
-## Crop species to smaller scale
+<!-- ## Crop species to smaller scale -->
 
 
-```{r cropping, warning=FALSE}
+```{r cropping, echo=F, warning=FALSE, include=F}
 
 # set location 
 # location = c(-2.730696, 54.026759) # quernmore
@@ -230,10 +233,10 @@ names(out_cropped) <- names
 
 ### Score for a single species
 
-*Adscita_geryon*
+We can combine the probability of presence layers for each species by adding them together or multiplying them. Here is a comparison between the methods for an example species, *Adscita geryon*.
 
 
-```{r score, fig.height=8, fig.width=10, warning=FALSE}
+```{r score, echo=F, fig.height=8, fig.width=10, echo=F, warning=FALSE}
 
 score <- recommend_metric(prediction_raster = out_cropped$Adscita_geryon$predictions,
                           error_raster = out_cropped$Adscita_geryon$quantile_var)
@@ -250,7 +253,7 @@ par(mfrow = c(1,1))
 ```
 
 
-```{r score_mult_spp, warning = FALSE}
+```{r score_mult_spp, echo=F, warning = FALSE}
 
 score_mult <- lapply(c(1:length(out_cropped)), FUN = function(x){
   
@@ -276,34 +279,33 @@ names(var) <- names(out_cropped)
 
 ```
 
-It makes most sense to use the multiplicative method of combining probability of presence and variation layers, so this is what I've used for the rest of the plots.
-
-Combining metrics across species using some kind of weighting seems like a good option. Ideally, we want to combine them in such a way that:
-
-- rare species (locally, nationally or both[?]) are not downweighted
-  * solution: weighted by national scarcity
- 
-- common species are not upweighted unintentionally and are maybe even downweighted
-- habitat specialists are not downweighted compared to generalists
-   * potential solution: Find only species that have a greater than X prob presence in a region. Find the ones with the fewest cells with their value above a certain (high) threshold?
-- priority given to species of conservation concern?
-  * this is moving away from areas that improve the models the most
+We decided in a previous meeting that it makes most sense to use the multiplicative method of combining probability of presence and variation layers, so this is what I've used for the rest of the plots.
 
 ## How to combine DECIDE score across species?
 
-We have decided to produce a metric which is evaluated across species; this will be easier for any user to digest and does not leave us open to too much criticism in terms of recorders claiming the models are wrong. Multiple potential options to test regarding how to combine the multiplied score across species to create a 'DECIDE score':
+We have decided to produce a metric which is evaluated across species; this will be easier for any user to digest and does not leave us open to too much criticism in terms of recorders claiming the models are wrong. Ideally, we want to combine them in such a way that:
+
+- rare species (locally, nationally or both[?]) are not downweighted
+* solution: weighted by national scarcity?
+- common species are maybe downweighted
+- habitat specialists are not downweighted compared to generalists
+* potential solution: Find only species that have a greater than X prob presence in a region. Find the ones with the fewest cells with their value above a certain (high) threshold?
+- priority given to species of conservation concern?
+
+However, we need to make sure that including weightings doesn't affect the adaptive sampling process too much and affect our ability to evaluate whether the app worked at the end of the project. Multiple potential options to test regarding how to combine the multiplied score across species into a 'DECIDE score':
 
 1. take sum across species
 2. take the mean across species
 3. weighted average based on maximum probability of presence within region
 4. weighted average based on maximum probability of presence within larger region (~30km?)
 5. weighted average based on national scarcity - number of unique grid cells a species occurs in across the UK
-6. weighted average based on maximum uncertainty within region
+6. weighted average based on max uncertainty within region
+7. weighted average based on mean uncertainty within region
 
-Want to compare all these possibilities using both the arithmetic mean and geometric mean to see which looks better.
+Want to compare all these possibilities using both the arithmetic mean and geometric mean to see which looks better. The plots will be numbered by the points listed above. Sorry they're so small, I to be able to compare them all easily. 
 
 
-```{r 1_comb_arithmetic, warning = F}
+```{r 1_comb_arithmetic, warning = F, echo = F}
 
 dfm <- read.csv('../../Data/species_data/moth/DayFlyingMoths_East_Norths.csv')
 
@@ -379,7 +381,7 @@ arit_weight_meanvar_7 <- weighted.mean(stack(score_mult), cellStats(stack(var), 
 
 
 
-```{r geo_mean, warning = FALSE}
+```{r geo_mean, warning = FALSE, echo = F}
 
 ## 1.
 sum_1 <- calc(stack(score_mult), sum)
@@ -414,7 +416,7 @@ geo_weight_meanvar_7 <- weighted.geomean(stack(score_mult), cellStats(stack(var)
 ```
 
 
-```{r all_ps, fig.height = 7, fig.width=20, meassage = F, warning=F, include = TRUE}
+```{r all_ps, fig.height = 7, fig.width=20, meassage = F, warning=F, echo = F}
 
 par(mfrow =c(2,6))
 
@@ -439,9 +441,11 @@ par(mfrow=c(1,1))
 
 Taking the weighted geometric mean results in some areas having a 0 value, which would be very bad to have in the final app. To stop this can add a tiny constant to the values before multiplying them...
 
-Geometric mean with a constant added constant
+#### Geometric mean with a constant added constant
 
-```{r geo_mean_const, warning = FALSE, include = TRUE}
+The top row of plots are the geometric means without the constant added, the bottom row has the constant added as well. I think the plots with the constant added look a little bit better.
+
+```{r geo_mean_const, warning = FALSE, echo = F}
 
 constant <- 1e-5
 
@@ -478,7 +482,7 @@ geo_weight_meanvar_7_cons <- weighted.geomean(stack(score_mult)+constant, cellSt
 ```
 
 
-```{r all_ps_const, fig.height = 7, fig.width=20, meassage = F, warning=F}
+```{r all_ps_const, fig.height = 7, fig.width=20, meassage = F, warning=F, echo = F}
 
 par(mfrow =c(2,6))
 
@@ -500,9 +504,9 @@ par(mfrow=c(1,1))
 
 ```
 
+The last two big multi-plots are the main point of this document, for you to have a look at the outputs of different ways of creating a DECIDE score. Below are a few thoughts that I've had while doing this, which may or may not be of interest. 
 
-### Just a couple of thoughts on the different options
-
+#### Just a couple of thoughts on the different options
 
 1. take sum across species
 
@@ -510,52 +514,104 @@ Summing the DECIDE scores across species probably isn't very meaningful, but jus
 
 2. take the mean across species
 
+This might actually just be the easiest way for this first iteration. It's easy to explain and understand and might be a decent enough place-holder until we get some MCDM processes up and running.
 
 3. weighted average based on maximum probability of presence within region
 4. weighted average based on maximum probability of presence within larger region (~30km?)
 
-Weighted means by the probability of presence within the area is then specific to that area, which means the DECIDE score wouldn't be comparable across the whole UK. Could this be a problem from the project aims perspective? Weighted by max probability of presence means that species that are most likely to be present in an area will be upweighted compared to species that are less likely. This might not be the best idea because it means that common species are likely to be upweighted across the whole UK. I.e. common species are likely to have high maximum probability of presence across much of the UK. A slight alteration of this might be a good way to increase the importance of habitat specialists, but would need to account for number of grid cells within a specific area with a high probability of presence rather than maximum.  
+Weighted means using the probability of presence within the area means the DECIDE score is specific to that area. This means the DECIDE score wouldn't be comparable across the whole of the UK, which could be a problem when evaluating the project? Weighting the score by the max probability of presence means that species that are most likely to be present in an area will be upweighted compared to species that are less likely. This might not be the best idea because it means that common species are likely to be upweighted across the whole of the UK. I.e. common species are likely to have high maximum probabilities of presence across much of the UK. A slight alteration of this might be a good way to increase the importance of habitat specialists: we could account for number of grid cells within a specific area with a probability of presence higher than some threshold, rather than using the maximum.  
 
 5. weighted average based on national scarcity - number of unique grid cells a species occurs in across the UK
 
-'National scarcity' is calculated by looking at the unique number of grid cells that a species appears in and dividing it by the total number of unique grid cells that have been sampled (rather than the total number of grid cells in the UK). However, this might not be sensible because this could, in some situations, upweight species that are extremely unlikely to be present in an area. For example, a species that only occurs in the Scottish Highlands would be very scarce nationally and would never be found in southern England. However, because all species have a probability of presence in every grid cell in the UK, that species would get strongly upweighted in the models...
+'National scarcity' is calculated by looking at the unique number of grid cells that a species appears in and dividing it by the total number of unique grid cells that have been sampled (rather than the total number of grid cells in the UK). However, this might not be sensible because this could, in some situations, upweight species that are extremely unlikely to be present in an area. For example, a species that only occurs in the Scottish Highlands would be very scarce nationally and would never be found in southern England. However, because all species have a probability of presence in every grid cell in the UK, that species would get strongly upweighted in the DECIDE score.
 
 6. weighted average based on maximum uncertainty within region
+7. weighted average based on mean uncertainty within region
 
-If we are interested in improving the models the most, this will probably be by sending people to areas with the highest uncertainty. This will of coourse influence how likely a recorder is to see a species which might be a problem.
+If we are interested in improving the models the most, this will probably be by sending people to areas with the highest uncertainty. Weighting the score by the maximum uncertainty within a region might be a really good way of improving the models. As you can see in the figure below, the relationship between the probability of presence and variation layers tends to be quadratic, which means that cells with mid-levels of predicted probabilities would be upweighted. This will of course influence how likely a recorder is to see a species, which might be a problem from a user's perspective. Caveat, I don't yet know what's going on with *Siona lineata*'s 1:1 relationship in the figure below.
 
 
-### General points
+```{r prb_var_rel, echo=FALSE, message = F, warning = F}
 
-Does it make sense to weight the average by something that makes up the score itself, i.e., the score is probability of presence*var and the mean across species is weighted by the max probability of presence? I guess technically isn't the same thing but is this a problem?
+pred_df <- stack(preds) %>% as.data.frame(xy=T) %>% 
+  pivot_longer(cols = c(3:44), names_to = 'species_pred', values_to = 'preds')
+var_df <- stack(var) %>% as.data.frame(xy=T) %>% 
+  pivot_longer(cols = c(3:44), names_to = 'species_var', values_to = 'var') %>% 
+  rename(xv = x, yv = y)
 
-Is it better just to take the mean across all cells, without any weightings? This means that each species will be given the same weighting in the final value of the cell. If we take the geometric mean it reduces the influence of outliers which could be good. Conversely, it might be better to have the DECIDE score be strongly influenced by outliers, in which case, the arithmetic mean might be better. 
+
+check <- (cbind(pred_df, var_df)) %>% 
+  na.omit() %>% 
+  mutate(check = ifelse(paste0(x,y,species_pred)!=paste0(xv,yv,species_var),1,0))
+
+# head(check)
+# 
+# sum(check$check) ## all good
+
+check %>% 
+  ggplot() +
+  # geom_point(aes(x = preds, y = var, colour = species_pred), show.legend = FALSE, alpha = 0.2) +
+  geom_smooth(aes(x = preds, y = var, colour = species_pred), show.legend = FALSE) +
+  theme_classic() +
+  labs(caption = 'Relationship between variation and probability of presence, coloured by species',
+       x = 'Predicted probability',
+       y = 'Variation') +
+  theme(plot.caption = element_text(hjust = 0, size = 12))
+
+par(mfrow = c(1,2))
+plot(stack(preds)[[33]], main = paste(names(stack(preds))[33], 'predictions'))
+plot(stack(var)[[33]], main = paste(names(stack(preds))[33], 'variation'))
+par(mfrow=c(1,1))
+
+```
+
+
+#### General points
+
+Does it make sense to weight the average by a component of the score itself, i.e., the score is probability of presence*var and the mean across species is weighted by the max probability of presence? I guess they aren't technically the same thing but might this be a problem?
+
+Is it better just to take the mean across all species, without any weightings? This means that each species will be given the same weighting in the final value of a cell, so that we're not trying to alter the data in a way that 'suits' us. If we take the geometric mean it reduces the influence of outliers which could be good. Conversely, it might be better to have the DECIDE score be strongly influenced by outliers so that cells containing particularly high uncertainty or probability of presence are favoured, in which case, the arithmetic mean might be better. 
 
 What about combining species by taking the weighted average of the probability of presence layers and using the quantile variation layer as a weight? I.e. each cell would be weighted by its corresponding variation in the same cell...
-  * means we can't assess/don't have the decide score of each species?
+* means we can't assess/don't have the decide score of each species?
 
 Also, the arithmetic mean of all DECIDE scores is very uniform across the whole area. Tom suggested plotting using the square of the arithmetic mean to 'spread out' the values a little more.
 
 
-```{r extra_plots, include = T, warning = F, message = F}
+```{r extra_plots, fig.height = 5, fig.width=20, include = T, echo=T}
 
 
 wt_decide <- raster::weighted.mean(x = preds, 
                                    w = var)
-
-plot(wt_decide, main = 'arith mean, prob. weighted by uncertainty')
+par(mfrow = c(1,2))
+plot(wt_decide, main = 'arith mean, prob weighted by uncertainty')
 
 geowt_decide <- weighted.geomean(x = preds,
                                  w = var)
 
-plot(geowt_decide, main = 'geo mean, prob. weighted by uncertainty')
+plot(geowt_decide, main = 'geo mean, prob weighted by uncertainty')
+
 
 plot(mean_2, main = '2. arithmetic mean')
 plot(mean_2^2, main = '2. arithmetic mean squared')
 
+par(mfrow =c(1,6))
+
+plot(mean_2^2, main = '2. arithmetic mean squared')
+plot(arit_weight_max_3^2, main = '3. arith_mean, wt max prob. pres. squared')
+plot(arit_weight_max30km_4^2, main = '4. arith_mean, wt max prob. pres. 30km squared')
+plot(arit_weight_ukprev_5^2, main = '5. arith_mean, wt national scarcity squared')
+plot(arit_weight_maxvar_6^2, main = '6. arit_mean, wt max var. squared')
+plot(arit_weight_meanvar_7^2, main = '6. arit_mean, wt mean var. squared')
+
+par(mfrow=c(1,1))
+
 
 
 ```
+
+
+
 
 
 
