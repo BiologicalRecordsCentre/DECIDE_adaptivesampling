@@ -8,3 +8,24 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+
+
+Short piece to outline the rationale behind the decide score.
+
+# The aims
+
+what we want, how we want it to work across species etc
+
+# how to do that?
+
+The different components that we can use
+
+# the DECIDE score
+
+Why we have chosen to use the preds*sqrt(var) and mean weighted by probability of presence within a grid cell 
+
+# what we can do with this
+
+We can alter the colour scheme to highlight different areas
+this is based only on the model
+we can include other 'variables' as we see fit, e.g. phenology, conservation concern, etc...
