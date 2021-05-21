@@ -17,6 +17,7 @@ location = c(-1.110557, 51.602436) # wallingford
 # location = c(-0.373791, 51.359252) # claremont park london region
 # location = c(-2.785436, 54.012698) # lancaster
 # location = c(-2.730696, 54.026759) # quernmore
+location = c(-0.126791, 50.819506) # brighton
 distance = 5000
 
 

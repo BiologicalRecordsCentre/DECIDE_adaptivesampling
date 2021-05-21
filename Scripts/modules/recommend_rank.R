@@ -9,28 +9,33 @@
 # _Metadata_: ???
 
 
-##' Need to work out how this will work with multiple models
-##' As we are not interested in the model used per se, probably need a 
-##' new function that averages the models using the AUC - just use rob's function
-##' to do this
-
 ##' aggregate prediction, errors and ranks across all species
 ##' Include in the function a way to get the rank across all species when added together
 ##' but also get a rank that done for each species separately
 ##' _input_ prediction+error rasterstack of species (output of recommend_metric()); 
-##' _input_ cont.: method for recommendation (only rank so far);
+##' _input_ cont.: method for recommendation;
 ##' _input_ cont.: how to aggregate predictions (don't know if useful) - across species/species separately ---- HAVE A THINK ----
 ##' _outout_ method = 'additive' : 2 rasters, original metric and inverse rank of cells metric 
 ##' _outout_ method = 'species_rank' :  2 rasters for each species, original metric and inverse rank of cells metric 
+##' 
+##' 'method' must be one of the following:
+##' 
+##' 'additive': Sums all the decide scores from each raster together and then ranks them
+##' 'species_rank': Keeps all the species separately and rank the cells for each species
+##' 'arith_mean': Arithmetic mean across all species
+##' 'geom_mean': Geometric mean across all species
+##' 
+##' 
+##' 
 
 
 recommend_rank <- function(predict_err_raster,
                            method = NULL){ # c('additive', 'species_rank'), one of these options
   
   # stop if method not specified
-  if(!all(method %in% c('additive', 'species_rank'))){
+  if(!all(method %in% c('additive', 'species_rank', 'arith_mean', 'geom_mean'))){
     
-    stop("'methods are limited to:'additive', 'species_rank'")
+    stop("'methods are limited to:'additive', 'species_rank', 'arith_mean', 'geom_mean'")
     
   }
   
@@ -38,15 +43,19 @@ recommend_rank <- function(predict_err_raster,
   # if species_rank retain the error for each species separately
   if(method == 'additive'){
     rast <- sum(predict_err_raster) # sum raster layer of predict_err_raster across all species
+  } else if(method == 'arith_mean'){
+    rast <- mean(predict_err_raster)
+  } else if(method == 'geom_mean') {
+    rast <- calc(predict_err_raster, gm_mean) 
   } else if(method == 'species_rank') {
     rast <- predict_err_raster # keep the raster for each species separately
-  }
+  } 
   
   comb_df <- as.data.frame(rast, xy = T) # convert raster to data frame
   # head(comb_df)
   
   # to get the rank need to use 'quo()' argument to create a conditional 'group_by()' statement later
-  if(method == 'additive'){
+  if(method != 'species_rank'){
     quo_var <- quo() # if ranking across all species, don't need to 'group_by()' anything, so need an empty variable
   } else if(method == 'species_rank'){
     # if want the rank for each species separately, need to 'group_by' species
@@ -100,3 +109,9 @@ recommend_rank <- function(predict_err_raster,
 
 # oi <- recommend_rank(predict_err_raster = additive_metric,
 #                method = 'additive')
+
+
+# unweighted geometric mean function
+gm_mean <-  function(x, na.rm=FALSE){
+  exp(sum(log(x[x > 0]), na.rm=na.rm) / length(x))
+}
