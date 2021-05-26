@@ -48,11 +48,10 @@ head(wmdf)
 # create nudge list
 ### ---   new function
 nudge_list <- function(decide_rast,
-                       prop = 0.1,
+                       prop = 0.1, # proportion of total number of cells to suggest as nudges
                        cutoff_value = 0.9, # anywhere between 0-1; quantile to select nudges from
                        cutoff = FALSE, # whether or not to cut off all of the values below the cutoff_value
-                       weight = TRUE, # whether or not to weight the nudges returned by decide score
-                       scale_weights = TRUE)
+                       weight = TRUE) # whether or not to weight the nudges returned by decide score - not a very powerful effect - how to increase?
 {
   
   decide_df <- as.data.frame(decide_rast,
@@ -65,14 +64,14 @@ nudge_list <- function(decide_rast,
   # get values above cutoff
   # currently only works for one cutoff value
   decide_df <- decide_df %>% 
-    mutate(keep = ifelse(dec_score > qs, 1,0)) %>% 
+    mutate(above_cutoff = ifelse(dec_score > qs, 1,0)) %>% 
     na.omit()
   
   # if cutoff, only display nudges > cutoff
   # if cutoff=F, keep values below cutoff
   if(cutoff == T){
     
-    high_decide <- decide_df[decide_df$keep==1,]
+    high_decide <- decide_df[decide_df$above_cutoff==1,]
     
   } else if(cutoff == F){ 
     
@@ -84,9 +83,7 @@ nudge_list <- function(decide_rast,
     
     nudge_ind <- sample(1:dim(high_decide)[1], 
                         size = dim(high_decide)[1]*prop, 
-                        prob= ifelse(rep(scale_weights==TRUE, length(high_decide$dec_score)), # ifelse returns vector same length as 'test'
-                                     (high_decide$dec_score-min(high_decide$dec_score))/(max(high_decide$dec_score)-min(high_decide$dec_score)), 
-                                     high_decide$dec_score))
+                        prob = high_decide$dec_score)
     
   } else if(weight == FALSE){
     
@@ -95,13 +92,48 @@ nudge_list <- function(decide_rast,
     
   }
   
-  nudges <- high_dec[nudge_ind,]
+  nudges <- high_decide[nudge_ind,]
   return(nudges)
   
 }
 
 nudges <- nudge_list(wall_m)
 head(nudges)
+
+## function to return a random number of nudges length N
+select_nudges <- function(nudge_df,
+                          n = 15,
+                          weight = TRUE) {
+  
+  nudge_df <- nudge_df[nudge_df$above_cutoff == 1,]
+  print('!!!   Only selecting nudges from above the cutoff   !!!')
+  
+  if(weight == TRUE){
+    
+    nudge_inds <- sample(1:dim(nudge_df)[1], 
+                         n,
+                         prob = nudge_df$dec_score)
+    
+  } else if(weight == FALSE){
+    
+    nudge_inds <- sample(1:dim(nudge_df)[1], 
+                         n)
+    
+    
+  } else{ stop('!!!   Weights must either be TRUE or FALSE, more options will be implemented later   !!!')}
+  
+  nudge_outs <- nudge_df[nudge_inds,]
+  
+  return(nudge_outs)
+  
+}
+
+nudge_subset <- select_nudges(nudge_df = nudges, n=30)
+nudge_subset
+
+## function to remove all the points within X distance of other points
+
+## function to choose points close to accessible features 
 
 # convert raster
 wall_m_sf <- conv_rast(wall_m, 27700)
@@ -111,6 +143,6 @@ wall_m_sf <- conv_rast(wall_m, 27700)
 p <- ggplot() +
   geom_sf(data = wall_m_sf, aes(fill=layer), col = NA) 
 
-p <- p +  geom_point(data = nudges, aes(x=lon, y=lat), colour = 'pink', cex = 0.7)
+p <- p +  geom_point(data = nudges, aes(x=lon, y=lat), colour = 'red', cex = 0.7)
 
-p
+p + geom_point(data = nudge_subset, aes(x=lon, y=lat), colour = 'green', cex = 0.7)
