@@ -3,6 +3,7 @@
 ### dummy nudges
 library(raster)
 library(sf)
+library(tidyverse)
 
 source("Scripts/modules/filter_distance.R")
 source("Scripts/modules/convert_raster.R")
@@ -25,24 +26,24 @@ wall_m <- filter_distance(mgb,
                           method = 'buffer') 
 
 ## cutoff 
-### ---   FUNCTIONALISE
-cutoffs = c(0.9) # anywhere between 0-1
-
-wall_m_df <- as.data.frame(wall_m,
-                           xy = T)
-names(wall_m_df) <- c('lon', 'lat', 'dec_score')
-
-# quantile
-qs <- quantile(wall_m_df$dec_score, probs = cutoffs, na.rm = T)
-qs
-
-# get values above cutoff
-wmdf <- wall_m_df %>% 
-  mutate(keep = ifelse(dec_score > qs, 1,0)) %>% 
-  na.omit()
-head(wmdf)
-
-### ---   end of function
+# ### ---   FUNCTIONALISE
+# cutoffs = c(0.9) # anywhere between 0-1
+# 
+# wall_m_df <- as.data.frame(wall_m,
+#                            xy = T)
+# names(wall_m_df) <- c('lon', 'lat', 'dec_score')
+# 
+# # quantile
+# qs <- quantile(wall_m_df$dec_score, probs = cutoffs, na.rm = T)
+# qs
+# 
+# # get values above cutoff
+# wmdf <- wall_m_df %>% 
+#   mutate(keep = ifelse(dec_score > qs, 1,0)) %>% 
+#   na.omit()
+# head(wmdf)
+# 
+# ### ---   end of function
 
 
 # create nudge list
@@ -138,8 +139,14 @@ nudge_select <- function(nudge_df,
   
 }
 
-nudge_subset <- nudge_select(nudge_df = nudges, n=30)
-nudge_subset
+nudge_subset <- nudge_select(nudge_df = nudges, n=10)
+head(nudge_subset)
+
+d <- dist(cbind(nudge_subset$lon, nudge_subset$lat), diag = T)
+
+ddf <- head(melt(as.matrix(d)))
+ddf
+
 
 
 ## function to remove all the points within X distance of other points
