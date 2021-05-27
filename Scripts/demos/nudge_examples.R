@@ -47,12 +47,16 @@ head(wmdf)
 
 # create nudge list
 ### ---   new function
-nudge_list <- function(decide_rast,
+list_nudge <- function(decide_rast,
                        prop = 0.1, # proportion of total number of cells to suggest as nudges
                        cutoff_value = 0.9, # anywhere between 0-1; quantile to select nudges from
                        cutoff = FALSE, # whether or not to cut off all of the values below the cutoff_value
-                       weight = TRUE) # whether or not to weight the nudges returned by decide score - not a very powerful effect - how to increase?
+                       weight = TRUE, # whether or not to weight the nudges returned by decide score - not a very powerful effect - how to increase?
+                       weight_inflation = 10) # how much to inflate the decide score weighting
 {
+  
+  require(raster)
+  require(tidyverse)
   
   decide_df <- as.data.frame(decide_rast,
                              xy = T)
@@ -83,7 +87,7 @@ nudge_list <- function(decide_rast,
     
     nudge_ind <- sample(1:dim(high_decide)[1], 
                         size = dim(high_decide)[1]*prop, 
-                        prob = high_decide$dec_score)
+                        prob = high_decide$dec_score^weight_inflation)
     
   } else if(weight == FALSE){
     
@@ -97,22 +101,28 @@ nudge_list <- function(decide_rast,
   
 }
 
-nudges <- nudge_list(wall_m)
+nudges <- list_nudge(wall_m,
+                     prop = 0.1, 
+                     cutoff_value = 0.9, 
+                     cutoff = FALSE,
+                     weight = TRUE,
+                     weight_inflation = 50)
 head(nudges)
 
 ## function to return a random number of nudges length N
-select_nudges <- function(nudge_df,
+nudge_select <- function(nudge_df,
                           n = 15,
-                          weight = TRUE) {
+                          weight = TRUE,
+                          weight_inflation = 50) {
   
   nudge_df <- nudge_df[nudge_df$above_cutoff == 1,]
-  print('!!!   Only selecting nudges from above the cutoff   !!!')
+  print('!   Only selecting nudges from above the cutoff')
   
   if(weight == TRUE){
     
     nudge_inds <- sample(1:dim(nudge_df)[1], 
                          n,
-                         prob = nudge_df$dec_score)
+                         prob = nudge_df$dec_score^weight_inflation)
     
   } else if(weight == FALSE){
     
@@ -128,13 +138,18 @@ select_nudges <- function(nudge_df,
   
 }
 
-nudge_subset <- select_nudges(nudge_df = nudges, n=30)
+nudge_subset <- nudge_select(nudge_df = nudges, n=30)
 nudge_subset
+
 
 ## function to remove all the points within X distance of other points
 
+
 ## function to choose points close to accessible features 
 
+
+
+####    Plotting
 # convert raster
 wall_m_sf <- conv_rast(wall_m, 27700)
 
@@ -143,6 +158,10 @@ wall_m_sf <- conv_rast(wall_m, 27700)
 p <- ggplot() +
   geom_sf(data = wall_m_sf, aes(fill=layer), col = NA) 
 
-p <- p +  geom_point(data = nudges, aes(x=lon, y=lat), colour = 'red', cex = 0.7)
+p <- p +  geom_point(data = nudges, aes(x=lon, y=lat, colour = 'no_cutoff'), cex = 0.7)
 
-p + geom_point(data = nudge_subset, aes(x=lon, y=lat), colour = 'green', cex = 0.7)
+p + geom_point(data = nudge_subset, aes(x=lon, y=lat, colour = 'cutoff'), cex = 0.7) +
+  scale_colour_manual(values = c('green', 'red')) +
+  scale_fill_continuous(type = 'viridis') +
+  theme_bw() +
+  labs(x=NULL, y=NULL)
