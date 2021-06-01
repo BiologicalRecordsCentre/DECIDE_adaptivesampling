@@ -120,7 +120,7 @@ nudge_select <- function(nudge_df,
   
 }
 
-nudge_subset <- nudge_select(nudge_df = nudges, n=15)
+nudge_subset <- nudge_select(nudge_df = nudges, n=50)
 head(nudge_subset)
 
 
@@ -141,7 +141,7 @@ sample_ind <- sample(1:dim(st_intersection(nudge_spat, grd[69,]))[1], size = 1)
 nudge_spat[sample_ind,]
 
 
-thin_nudges <- function(decide_raster, nudge_df, lon, lat, crs, buffer_distance, sample_num){
+thin_nudges <- function(decide_raster, nudge_df, lon = 'lon', lat = 'lat', crs, buffer_distance, sample_num){
   
   # create a grid to sample from
   spat_grd <- st_make_grid(conv_rast(decide_raster, 27700), cellsize = buffer_distance)
@@ -151,20 +151,46 @@ thin_nudges <- function(decide_raster, nudge_df, lon, lat, crs, buffer_distance,
   
   # go through each grid cell, sample from all the points in the grid
   # return sample_num points per grid cell
-  l_out <- lapply(1:dim(nudge_df)[1], FUN = function(x){
+  l_out <- lapply(1:length(spat_grd), FUN = function(x){
     
-    # sample from the number of points in a grid cell
-    sample_index <- sample(1:dim(st_intersection(spat_nudge, spat_grd[x,]))[1], size = 1)
-    
-    # return the sampled point
-    return(spat_nudge[sample_index,])
-  
+    # sample from a grid cell
+    # only if grid contains a point
+    if(dim(st_intersection(spat_nudge, spat_grd[x,]))[1]>0){
+      
+      # sample 'sample_num' points from the grid cell of interest
+      sample_index <- sample(1:dim(st_intersection(spat_nudge, spat_grd[x,]))[1], 
+                             size = ifelse(sample_num <= dim(st_intersection(spat_nudge, spat_grd[x,]))[1], # if the number of points asked for is less than the number in the cell then  
+                                           sample_num, # return the number asked for
+                                           dim(st_intersection(spat_nudge, spat_grd[x,]))[1])) # if more, then return all the points in the cell
+      
+      # return the sampled point within that grid
+      return(st_intersection(spat_nudge, spat_grd[x,])[sample_index,])
+    }
     
   })
   
   return(do.call('rbind', l_out))
   
 }
+
+
+thinned_points <- thin_nudges(decide_raster = wall_m,
+                              nudge_df = nudge_subset,
+                              lon = 'lon',
+                              lat = 'lat',
+                              crs = 27700, 
+                              buffer_distance = 1000,
+                              sample_num = 1)
+
+
+ggplot() +
+  geom_sf(data = conv_rast(wall_m, 27700), aes(fill = layer, col = layer)) +
+  geom_point(data = nudge_subset, aes(x=lon, y=lat), pch = 20, col = 'red') +
+  geom_sf(data = grd, fill = NA, col = 'yellow') +
+  geom_sf(data = thinned_points, pch = 1, fill = NA, col = 'green') +
+  theme_bw()
+
+
 
 
 
