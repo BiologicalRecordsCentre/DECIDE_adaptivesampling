@@ -124,27 +124,22 @@ nudge_subset <- nudge_select(nudge_df = nudges, n=50)
 head(nudge_subset)
 
 
-
-#########################            SO MUCH TESTING             #########################
-
+#####     Thinning the nudges     #####
 ## the spatial approach
 
-nudge_spat <- st_as_sf(nudge_subset, coords = c('lon', 'lat'), crs = 27700)
-nudge_spat
-
-buffer_distance = 1000 # distance to buffer around nudges points
-
-grd <- st_make_grid(conv_rast(wall_m, 27700), cellsize = buffer_distance)
-
-sample_ind <- sample(1:dim(st_intersection(nudge_spat, grd[69,]))[1], size = 1)
-
-nudge_spat[sample_ind,]
-
-
-thin_nudges <- function(decide_raster, nudge_df, lon = 'lon', lat = 'lat', crs, buffer_distance, sample_num){
+# function to thin nudges
+thin_nudges <- function(decide_raster, # the original raster layer
+                        nudge_df, # the data frame of nudges to thin, can be in any form as long as it has a 'lon' and 'lat' column
+                        lon = 'lon', # the name of the longitude column in the data frame
+                        lat = 'lat',  # the name of the latitude column in the data frame
+                        crs = st_crs(decide_raster), # the coordinates system of the base raster - used in making the grid
+                        buffer_distance, # the resolution of the grid to sample from - on the scale of the raster
+                        sample_num,
+                        plot = FALSE,
+                        square = TRUE){
   
   # create a grid to sample from
-  spat_grd <- st_make_grid(conv_rast(decide_raster, 27700), cellsize = buffer_distance)
+  spat_grd <- st_make_grid(conv_rast(decide_raster, crs), cellsize = buffer_distance, square = square)
   
   # convert nudges to sf points object
   spat_nudge <- st_as_sf(nudge_df, coords = c(lon, lat), crs = crs)
@@ -158,6 +153,8 @@ thin_nudges <- function(decide_raster, nudge_df, lon = 'lon', lat = 'lat', crs, 
     if(dim(st_intersection(spat_nudge, spat_grd[x,]))[1]>0){
       
       # sample 'sample_num' points from the grid cell of interest
+      # could also determine number of nudges based on the number of points in the cell
+      # i.e. the proportion of points in that cell?
       sample_index <- sample(1:dim(st_intersection(spat_nudge, spat_grd[x,]))[1], 
                              size = ifelse(sample_num <= dim(st_intersection(spat_nudge, spat_grd[x,]))[1], # if the number of points asked for is less than the number in the cell then  
                                            sample_num, # return the number asked for
@@ -169,7 +166,24 @@ thin_nudges <- function(decide_raster, nudge_df, lon = 'lon', lat = 'lat', crs, 
     
   })
   
-  return(do.call('rbind', l_out))
+  
+  p <- ggplot() +
+    geom_sf(data = conv_rast(decide_raster, crs), aes(fill = layer, col = layer)) +
+    geom_sf(data = spat_grd, fill = NA, col = 'yellow') +
+    geom_point(data = nudge_df, aes(x=lon, y=lat), pch = 20, col = 'red') +
+    geom_sf(data = do.call('rbind', l_out), pch = 1, fill = NA, col = 'black')+
+    theme_bw() +
+    labs(x='Longtitude', y='Latitude') +
+    scale_fill_continuous(type = 'viridis', name = 'layer value') +
+    scale_colour_continuous(type = 'viridis', name = 'layer value')
+  
+  if(plot == TRUE){
+    print(p)
+  }
+  
+  return(list(nudges = do.call('rbind', l_out),
+              grid = spat_grd,
+              plot = p))
   
 }
 
@@ -182,14 +196,7 @@ thinned_points <- thin_nudges(decide_raster = wall_m,
                               buffer_distance = 1000,
                               sample_num = 1)
 
-
-ggplot() +
-  geom_sf(data = conv_rast(wall_m, 27700), aes(fill = layer, col = layer)) +
-  geom_point(data = nudge_subset, aes(x=lon, y=lat), pch = 20, col = 'red') +
-  geom_sf(data = grd, fill = NA, col = 'yellow') +
-  geom_sf(data = thinned_points, pch = 1, fill = NA, col = 'green') +
-  theme_bw()
-
+thinned_points$plot
 
 
 
