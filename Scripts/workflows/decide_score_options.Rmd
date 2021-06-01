@@ -6,10 +6,12 @@ output: html_document
 ---
 
 
+
 The point of this document is to explore some potential options for creating a DECIDE score across all moth species. All plots are centred around Wallingford with a 5k radius. Models aren't the most up-to-date either, they're currently using data with replicates in each cell and aren't weighted by AUC values when combined.
 
 
 ```{r setup, include=F, echo = FALSE}
+
 
 knitr::opts_chunk$set(echo = TRUE,
                       message = FALSE,
@@ -28,6 +30,7 @@ source("../modules/recommend_rank.R")
 source("../modules/recommend_metric.R")
 source("../modules/recommend_agg_rank.R")
 source("../modules/extract_metric.R")
+
 
 
 options(col=viridis(n = 1e4))
@@ -52,6 +55,7 @@ weighted.geomean <- function(x, w, na.rm = FALSE, ...){
 <!-- This code loads in data from my directory in the object store which is publicly available (as long as your notebook has access to the object store). -->
 
 ```{r species_data, echo=F, warning=FALSE, include=F}
+
 
 model = c('rf', 'lr', 'gam')
 taxa = 'moth'
@@ -277,6 +281,7 @@ var <- stack(lapply(1:length(out_cropped), FUN = function(x) out_cropped[[x]]$qu
 names(var) <- names(out_cropped)
 
 
+
 ```
 
 We decided in a previous meeting that it makes most sense to use the multiplicative method of combining probability of presence and variation layers, so this is what I've used for the rest of the plots.
@@ -306,6 +311,8 @@ Want to compare all these possibilities using both the arithmetic mean and geome
 
 
 ```{r 1_comb_arithmetic, warning = F, echo = F}
+
+dfm <- read.csv('../../Data/species_data/moth/DayFlyingMoths_East_Norths.csv')
 
 dfm <- read.csv('../../Data/species_data/moth/DayFlyingMoths_East_Norths.csv')
 
@@ -378,6 +385,7 @@ arit_weight_meanvar_7 <- weighted.mean(stack(score_mult), cellStats(stack(var), 
 # plot(arit_weight_meanvar_7)
 
 ```
+
 
 
 
