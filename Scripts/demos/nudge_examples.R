@@ -4,6 +4,7 @@
 library(raster)
 library(sf)
 library(tidyverse)
+library(rgeos)
 
 source("Scripts/modules/filter_distance.R")
 source("Scripts/modules/convert_raster.R")
@@ -25,35 +26,15 @@ wall_m <- filter_distance(mgb,
                           distance=distance,
                           method = 'buffer') 
 
-## cutoff 
-# ### ---   FUNCTIONALISE
-# cutoffs = c(0.9) # anywhere between 0-1
-# 
-# wall_m_df <- as.data.frame(wall_m,
-#                            xy = T)
-# names(wall_m_df) <- c('lon', 'lat', 'dec_score')
-# 
-# # quantile
-# qs <- quantile(wall_m_df$dec_score, probs = cutoffs, na.rm = T)
-# qs
-# 
-# # get values above cutoff
-# wmdf <- wall_m_df %>% 
-#   mutate(keep = ifelse(dec_score > qs, 1,0)) %>% 
-#   na.omit()
-# head(wmdf)
-# 
-# ### ---   end of function
-
 
 # create nudge list
 ### ---   new function
-list_nudge <- function(decide_rast,
-                       prop = 0.1, # proportion of total number of cells to suggest as nudges
-                       cutoff_value = 0.9, # anywhere between 0-1; quantile to select nudges from
-                       cutoff = FALSE, # whether or not to cut off all of the values below the cutoff_value
-                       weight = TRUE, # whether or not to weight the nudges returned by decide score - not a very powerful effect - how to increase?
-                       weight_inflation = 10) # how much to inflate the decide score weighting
+list_nudges <- function(decide_rast,
+                        prop = 0.1, # proportion of total number of cells to suggest as nudges
+                        cutoff = FALSE, # whether or not to cut off all of the values below the cutoff_value
+                        cutoff_value = 0.9, # anywhere between 0-1; quantile to select nudges from
+                        weight = TRUE, # whether or not to weight the nudges returned by decide score - not a very powerful effect - how to increase?
+                        weight_inflation = 10) # how much to inflate the decide score weighting
 {
   
   require(raster)
@@ -102,19 +83,19 @@ list_nudge <- function(decide_rast,
   
 }
 
-nudges <- list_nudge(wall_m,
-                     prop = 0.1, 
-                     cutoff_value = 0.9, 
-                     cutoff = FALSE,
-                     weight = TRUE,
-                     weight_inflation = 50)
+nudges <- list_nudges(wall_m,
+                      prop = 0.1, 
+                      cutoff_value = 0.9, 
+                      cutoff = FALSE,
+                      weight = TRUE,
+                      weight_inflation = 50)
 head(nudges)
 
 ## function to return a random number of nudges length N
 nudge_select <- function(nudge_df,
-                          n = 15,
-                          weight = TRUE,
-                          weight_inflation = 50) {
+                         n = 15,
+                         weight = TRUE,
+                         weight_inflation = 50) {
   
   nudge_df <- nudge_df[nudge_df$above_cutoff == 1,]
   print('!   Only selecting nudges from above the cutoff')
@@ -139,14 +120,144 @@ nudge_select <- function(nudge_df,
   
 }
 
-nudge_subset <- nudge_select(nudge_df = nudges, n=10)
+nudge_subset <- nudge_select(nudge_df = nudges, n=15)
 head(nudge_subset)
 
-d <- dist(cbind(nudge_subset$lon, nudge_subset$lat), diag = T)
 
-ddf <- head(melt(as.matrix(d)))
-ddf
 
+#########################            SO MUCH TESTING             #########################
+df <- nudge_subset %>% mutate(k = 1,
+                              point_id = paste(lon, lat, sep='_'))
+
+buffer_distance = 1000 # distance to buffer around nudges points
+
+t <- df %>% 
+  full_join(df, by = "k") %>% 
+  filter(paste(lon.x, lat.x) != paste(lon.y,lat.y)) %>% 
+  mutate(distance = sqrt((lon.x - lon.y)^2 + (lat.x - lat.y)^2),
+         close = ifelse(distance <= buffer_distance, 0, 1)) %>% 
+  group_by(lon.x,lat.x) %>% 
+  summarise(keep = ifelse(any(close == 0), 0, 1)) %>% 
+  ungroup() %>% 
+  filter(keep == 1)
+
+
+ggplot() +
+  geom_point(data=df, aes(x=lon,y=lat)) +
+  geom_point(data=t, aes(x=lon.x,y=lat.x), colour = 'red')
+
+
+
+t2 <- df %>% 
+  full_join(df, by = "k") %>% 
+  filter(paste(lon.x, lat.x) != paste(lon.y,lat.y)) %>% 
+  mutate(distance = sqrt((lon.x - lon.y)^2 + (lat.x - lat.y)^2),
+         close = ifelse(distance <= buffer_distance, 0, 1))
+
+for(i in 1:length(t2$point_id.x)){
+  
+  dfi <- t2[t2$point_id.x == t2$point_id.x[i],]
+  
+  if(any(dfi$distance <= buffer_distance)){
+    
+    df_within_distance <- dfi[dfi$distance <= buffer_distance,]
+    sample_ind <- sample(1:dim(df_within_distance)[1], 1)
+    
+    sub_sample <- df_within_distance[sample_ind,] %>% 
+      select(lon = lon.x,
+             lat = lat.x,
+             dec_score = dec_score.x)
+    
+  } else {
+    
+    sub_sample <- data.frame(lon = unique(lon.x),
+                             lat = unique(lat.x),
+                             dec_score = unique(dec_score.x))
+  }
+  
+  return(sub_sample)
+  
+}
+
+
+buffer_distance=4000
+
+### i give up here
+
+d <- lapply(1:length(unique(t2$point_id.x)), FUN = function(x){
+  
+  dfi <- t2[t2$point_id.x == unique(t2$point_id.x)[x],]
+  
+  if(any(dfi$distance <= buffer_distance)){
+    
+    df_within_distance <- dfi[dfi$distance <= buffer_distance,]
+    sample_ind <- sample(1:dim(df_within_distance)[1], 1)
+    
+    sub_sample <- df_within_distance[sample_ind,] %>% 
+      select(lon = lon.y,
+             lat = lat.y,
+             dec_score = dec_score.x)
+    
+  } else {
+    
+    sub_sample <- data.frame(lon = unique(dfi$lon.x),
+                             lat = unique(dfi$lat.x),
+                             dec_score = unique(dfi$dec_score.x))
+  }
+  
+  return(sub_sample)
+  
+  
+})
+
+dd <- do.call(rbind,d)
+
+ggplot() +
+  geom_point(data=df, aes(x=lon,y=lat)) +
+  geom_point(data=dd, aes(x=lon,y=lat), colour = 'red')
+
+
+
+
+t %>% group_by(value) %>% 
+  summarise(keep = unique(close)) %>% 
+  separate(value, into = c('lon', 'lat'))
+
+
+points_matrix <- as.matrix(dist(cbind(df$lon, df$lat)))
+points_matrix[points_matrix <= buffer_distance] <- NA
+points_matrix[lower.tri(points_matrix, diag=TRUE)] <- NA
+points_matrix
+v <- colSums(points_matrix, na.rm=TRUE) > 0
+
+df_p <- df[v,]
+
+
+df2 <- df %>% 
+  full_join(df, by = "k") %>% 
+  mutate(dist = sqrt((lon.x - lon.y)^2 + (lat.x - lat.y)^2)) %>%
+  select(-k)
+
+head(df2)
+
+points_matrix <- rgeos::gWithinDistance(data.frame(df$lon, df$lat), dist = 1000, byid = TRUE)
+points_matrix[lower.tri(points_matrix, diag=TRUE)] <- NA
+points_matrix
+#    1     2     3     4     5
+# 1 NA FALSE FALSE FALSE FALSE
+# 2 NA    NA FALSE FALSE FALSE
+# 3 NA    NA    NA FALSE FALSE
+# 4 NA    NA    NA    NA  TRUE
+# 5 NA    NA    NA    NA    NA
+
+colSums(points_matrix, na.rm=TRUE) == 0
+#    1     2     3     4     5 
+# TRUE  TRUE  TRUE  TRUE FALSE 
+v <- colSums(points_matrix, na.rm=TRUE) == 0
+points[v, ]
+
+
+########################         END OF TESTING STILL FAILING             ############################
 
 
 ## function to remove all the points within X distance of other points
@@ -167,8 +278,10 @@ p <- ggplot() +
 
 p <- p +  geom_point(data = nudges, aes(x=lon, y=lat, colour = 'no_cutoff'), cex = 0.7)
 
-p + geom_point(data = nudge_subset, aes(x=lon, y=lat, colour = 'cutoff'), cex = 0.7) +
-  scale_colour_manual(values = c('green', 'red')) +
+p <- p + geom_point(data = nudge_subset, aes(x=lon, y=lat, colour = 'cutoff'), cex = 0.7) +
+  scale_colour_manual(values = c('green', 'red', 'orange')) +
   scale_fill_continuous(type = 'viridis') +
   theme_bw() +
   labs(x=NULL, y=NULL)
+
+p +  geom_point(data = df_p, aes(x=lon, y=lat, colour = 'thinned'), cex = 0.7) 
