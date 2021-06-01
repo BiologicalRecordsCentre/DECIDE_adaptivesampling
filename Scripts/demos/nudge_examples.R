@@ -126,10 +126,71 @@ head(nudge_subset)
 
 
 #########################            SO MUCH TESTING             #########################
+
+## the spatial approach
+
+nudge_spat <- st_as_sf(nudge_subset, coords = c('lon', 'lat'), crs = 27700)
+nudge_spat
+
+buffer_distance = 1000 # distance to buffer around nudges points
+
+grd <- st_make_grid(conv_rast(wall_m, 27700), cellsize = buffer_distance)
+
+sample_ind <- sample(1:dim(st_intersection(nudge_spat, grd[69,]))[1], size = 1)
+
+nudge_spat[sample_ind,]
+
+
+thin_nudges <- function(decide_raster, nudge_df, lon, lat, crs, buffer_distance, sample_num){
+  
+  # create a grid to sample from
+  spat_grd <- st_make_grid(conv_rast(decide_raster, 27700), cellsize = buffer_distance)
+  
+  # convert nudges to sf points object
+  spat_nudge <- st_as_sf(nudge_df, coords = c(lon, lat), crs = crs)
+  
+  # go through each grid cell, sample from all the points in the grid
+  # return sample_num points per grid cell
+  l_out <- lapply(1:dim(nudge_df)[1], FUN = function(x){
+    
+    # sample from the number of points in a grid cell
+    sample_index <- sample(1:dim(st_intersection(spat_nudge, spat_grd[x,]))[1], size = 1)
+    
+    # return the sampled point
+    return(spat_nudge[sample_index,])
+  
+    
+  })
+  
+  return(do.call('rbind', l_out))
+  
+}
+
+
+
+
+for(i in 1:length(grd)[1]){
+  
+  t <-  st_intersection(nudge_spat, grd[i,])
+  if(dim(t)[1]>0){
+    print(i)
+  }
+  
+}
+
+ggplot() +
+  geom_sf(data = conv_rast(wall_m, 27700), aes(fill = layer, col = layer)) +
+  geom_sf(data = nudge_spat, pch = 20, col = 'red') +
+  geom_sf(data = grd, fill = NA, col = 'yellow')
+
+plot((conv_rast(wall_m, 27700)))
+plot(st_geometry(nudge_spat), add = T)
+plot(st_geometry(grd), add = T)
+
+
 df <- nudge_subset %>% mutate(k = 1,
                               point_id = paste(lon, lat, sep='_'))
 
-buffer_distance = 1000 # distance to buffer around nudges points
 
 t <- df %>% 
   full_join(df, by = "k") %>% 
