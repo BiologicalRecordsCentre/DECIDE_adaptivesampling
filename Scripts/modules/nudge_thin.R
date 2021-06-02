@@ -63,14 +63,15 @@ nudge_thin <- function(decide_raster, # the original raster layer
   p <- ggplot() +
     geom_sf(data = conv_rast(decide_raster, crs), aes(fill = layer), col = NA) +
     geom_sf(data = spat_grd, fill = NA, col = 'black') +
-    geom_sf(data = do.call('rbind', l_out), aes(col = 'Thinned points'), pch = 20, size = 3, pch = 1)  +
-    geom_point(data = nudge_df, aes(x=lon, y=lat, col = 'Original points'), pch = 20, size = 1.5) +
+    geom_sf(data = do.call('rbind', l_out), aes(col = 'Thinned nudges'), pch = 20, size = 3, pch = 1)  +
+    geom_point(data = nudge_df, aes(x=lon, y=lat, col = 'Original nudges'), pch = 20, size = 1.5) +
     theme_bw() +
     labs(y='Longtitude', x='Latitude') +
     scale_fill_continuous(type = 'viridis', name = 'Layer value') + 
     scale_colour_manual(name = '', values = c('red', 'yellow'))
   
   if(plot == TRUE){
+    print('... Plotting...')
     print(p)
   }
   
