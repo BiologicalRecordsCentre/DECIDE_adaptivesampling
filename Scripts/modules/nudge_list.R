@@ -9,7 +9,7 @@
 # weight_inflation # how much to inflate the decide score weighting - will change how many 'bad' places will get selected
 
 
-nudges_list <- function(decide_rast,
+nudge_list <- function(decide_rast,
                         prop = 0.1, # proportion of total number of cells to suggest as nudges
                         cutoff = FALSE, # whether or not to cut off all of the values below the cutoff_value
                         cutoff_value = 0.9, # anywhere between 0-1; this is the quantile to select nudges from (i.e. above this quantile)
@@ -30,7 +30,7 @@ nudges_list <- function(decide_rast,
   # get values above cutoff
   # currently only works for one cutoff value
   decide_df <- decide_df %>% 
-    mutate(above_cutoff = ifelse(dec_score > qs, 1,0)) %>% 
+    mutate(above_cutoff = ifelse(dec_score >= qs, 1,0)) %>% 
     na.omit()
   
   # if cutoff, only display nudges > cutoff
