@@ -41,7 +41,7 @@ mgb <- raster('../../Data/species_data/decide_scores/moth_weighted_prob_pres_GB_
 
 
 location = c(-1.110557, 51.602436) # wallingford
-location = c(-2.730696, 54.026759) # quernmore
+# location = c(-2.730696, 54.026759) # quernmore
 distance = 5000
 
 # crop
@@ -120,7 +120,7 @@ nl_p1 + nl_p2 + plot_layout(guides = 'collect')
 
 ```
 
-Here is a new data frame of weighted nudges from above the 90th percentile to use with the later functions.
+Here is a new data frame of weighted nudges from above and below the 90th percentile to use with the later functions.
 
 ```{r nudge_list, echo=TRUE}
 
@@ -156,7 +156,7 @@ nl_p_nudge1
 
 ### 2. Select a subset of these nudges
 
-We can get a specific number of these nudges using the function 'nudge_select'. This takes the total number of nudges we want and samples the data frame outputted from the nudge_list function. For the moment, the nudges are only chosen from the locations above the cutoff DECIDE score which is decided in the 'nudge_list' function. The function nudge_select can also be weighted by the decide score, which can also be inflated by a user-determined amount, to return only the highest value locations. The reason this function is split from the last one is that I can imagine a user wanting to randomise the nudges they are sent. With the functions split, it means that we would only have to run 'nudge_select' as opposed to also running the 'nudge_list' function above when users want a new sample of nudges. Currently, the areas being shown are only within 5km of the user. However, 'nudge_list' is very likely to be slow with larger rasters (although I haven't directly tested this yet).
+We can get a specific number of these nudges using the function 'nudge_select'. This takes the total number of nudges we want and samples the data frame outputted from the nudge_list function. The function nudge_select can also be weighted by the DECIDE score, which can be inflated by a user-determined amount, to return only the highest value locations. The reason this function is split from the last one is that I can imagine a user wanting to randomise the nudges they are sent. With the functions split, it means that we would only have to run 'nudge_select' as opposed to also running the 'nudge_list' function above when users want a new sample of nudges. Currently, the areas being shown are only within 5km of the user. However, 'nudge_list' is very likely to be slow with larger rasters because of the raster::as.data.frame function (although I haven't directly tested this yet). The 'all nudges' plot is the same as the previous plot and is being compared to the 100 nudges sampled from it weighted by the DECIDE score.
 
 
 ```{r nudge_subset}
@@ -437,6 +437,20 @@ thinned_nudges <- nudge_thin(decide_raster = wall_m,
                              sample_num = 1)
 
 thinned_nudges$plot
+
+```
+
+### "Final" nudges
+
+```{r final_nudges, message = FALSE, warning = FALSE}
+
+ggplot() +
+  geom_sf(data = conv_rast(wall_m, 27700), aes(fill=layer), colour = NA) +
+  geom_sf(data = thinned_nudges$nudges, aes(colour = 'Suggested sampling\nlocations')) +
+  scale_fill_continuous(type = 'viridis', name = 'DECIDE score') +
+  scale_colour_manual(name = '', values = 'red') +
+  theme_bw()
+
 
 ```
 
