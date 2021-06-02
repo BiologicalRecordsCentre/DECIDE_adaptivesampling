@@ -1,0 +1,211 @@
+---
+title: "Providing DECIDE nudges"
+author: "Thomas MM; Tom A"
+date: "6/1/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(raster)
+library(patchwork)
+
+
+source("../../Scripts/modules/filter_distance.R")
+source("../../Scripts/modules/convert_raster.R")
+source("../../Scripts/modules/nudge_thin.R")
+source("../../Scripts/modules/nudge_select.R")
+source("../../Scripts/modules/nudge_list.R")
+
+
+```
+
+
+We are going to run through some potential ideas for how the DECIDE score can be translated into nudges that can be suggested to people. The nudging process essentially follows these steps:
+
+1. List of nudges that exceed a user-determined quantile for a given area
+2. Select a user-determined subset of these nudges
+3. Thin the nudges based on a user-defined grid
+
+First, need to prepare the raster data for use; load it in and filter to a location. In this case, the location is 5km around Wallingford
+
+```{r dec_rast, message = FALSE, warning = FALSE}
+
+mgb <- raster('../../Data/species_data/decide_scores/moth_weighted_prob_pres_GB_decide_score.grd')
+
+
+location = c(-1.110557, 51.602436) # wallingford
+location = c(-2.730696, 54.026759) # quernmore
+distance = 5000
+
+# crop
+wall_m <- filter_distance(mgb,
+                          location=location,
+                          distance=distance,
+                          method = 'buffer')
+
+```
+
+### 1. get a list of all nudges
+
+To get a list of potential nudge locations we use the function **'nudge_list'**. This takes the raster we created above and converts it to a data frame. We can provide the function with a quantile value and a cutoff 'TRUE/FALSE' statement. The function identifies the values that exceed the quantile for the area of interest (defined by 'cutoff_value') and, if cutoff = TRUE, it will remove all the points falling below it. If cutoff = FALSE, it retains all the values irrespective of their score. The function **returns a data frame of potential nudge locations** whose length is determined by 'prop'; it's value defines the proportion of the total number of cells in an area that we want returned. The values can be weighted by the DECIDE score value, so that locations with high decide scores are preferentially selected. These values are often low, so I have inflated the effect of the DECIDE score by providing an inflation factor ('weight_inflation').
+
+Below are some examples of the effects of the different parameters on the nudges returned; in these cases, changing the weightings when cutoff = TRUE/FALSE. NB if cutoff = FALSE and weight = FALSE, the function will return a random subset of background points.
+
+```{r nudge_list_df_plots, echo = TRUE}
+
+nud_prop01_cut_F <-  nudge_list(wall_m,
+                                prop = 0.01, 
+                                cutoff_value = 0.9, 
+                                cutoff = FALSE,
+                                weight = TRUE,
+                                weight_inflation = 50)
+
+
+nud_prop01_cut_F_unweight <-  nudge_list(wall_m,
+                                         prop = 0.01, 
+                                         cutoff_value = 0.9, 
+                                         cutoff = FALSE,
+                                         weight = FALSE,
+                                         weight_inflation = 50)
+
+nud_prop01_cut_T <-  nudge_list(wall_m,
+                                prop = 0.01, 
+                                cutoff_value = 0.9, 
+                                cutoff = TRUE,
+                                weight = TRUE,
+                                weight_inflation = 50)
+
+
+nud_prop01_cut_T_unweight <-  nudge_list(wall_m,
+                                         prop = 0.01, 
+                                         cutoff_value = 0.9, 
+                                         cutoff = TRUE,
+                                         weight = FALSE,
+                                         weight_inflation = 50)
+
+
+```
+
+
+```{r nudge_list_plots, echo = FALSE, message = FALSE, warning = FALSE, fig.width=12}
+
+nl_p1 <- ggplot() +
+  geom_sf(data = conv_rast(wall_m, 27700), aes(fill = layer), col = NA) +
+  geom_point(data = nud_prop01_cut_F, aes(x=lon,y=lat, col='Weighted')) +
+  geom_point(data = nud_prop01_cut_F_unweight, aes(x=lon,y=lat, col='Unweighted')) +
+  
+  scale_fill_continuous(type= 'viridis', name = 'DECIDE score') +
+  scale_colour_manual(name = '', values = c('black', 'red')) +
+  theme_bw() +
+  labs(x='', y='', title = 'No cutoff')
+
+nl_p2 <- ggplot() +
+  geom_sf(data = conv_rast(wall_m, 27700), aes(fill = layer), col = NA) +
+  geom_point(data = nud_prop01_cut_T, aes(x=lon,y=lat, col='Weighted')) +
+  geom_point(data = nud_prop01_cut_T_unweight, aes(x=lon,y=lat, col='Unweighted')) +
+  
+  scale_fill_continuous(type= 'viridis', name = 'DECIDE score') +
+  scale_colour_manual(name = '', values = c('black', 'red')) +
+  theme_bw() +
+  labs(x='', y='', title = 'With cutoff')
+
+nl_p1 + nl_p2 + plot_layout(guides = 'collect')
+
+```
+
+Here is a new data frame of weighted nudges from above the 90th percentile to use with the later functions.
+
+```{r nudge_list, echo=TRUE}
+
+# get a list of potential nudge locations
+nudges <- nudge_list(wall_m,
+                     prop = 0.1, 
+                     cutoff_value = 0.9, 
+                     cutoff = FALSE,
+                     weight = TRUE,
+                     weight_inflation = 10)
+head(nudges)
+
+
+```
+
+
+```{r nudge_list_plot, warning = FALSE, message = FALSE}
+
+nl_p_nudge1 <- ggplot() +
+  geom_sf(data = conv_rast(wall_m, 27700), aes(fill = layer), col = NA) +
+  geom_point(data = nudges, aes(x=lon,y=lat, col='Weighted nudges'))  +
+  
+  scale_fill_continuous(type= 'viridis', name = 'DECIDE score') +
+  scale_colour_manual(name = '', values = 'black') +
+  theme_bw() +
+  labs(x='', y='', title = 'All nudges') +
+  theme(legend.margin=margin(t=-0.25,l=0.05,b=0.0,r=0.05, unit='cm')) 
+nl_p_nudge1
+
+```
+
+
+
+### 2. Select a subset of these nudges
+
+We can get a specific number of these nudges using the function 'nudge_select'. This takes the total number of nudges we want and samples the data frame outputted from the nudge_list function. For the moment, the nudges are only chosen from the locations above the cutoff DECIDE score which is decided in the 'nudge_list' function. The function nudge_select can also be weighted by the decide score, which can also be inflated by a user-determined amount, to return only the highest value locations. The reason this function is split from the last one is that I can imagine a user wanting to randomise the nudges they are sent. With the functions split, it means that we would only have to run 'nudge_select' as opposed to also running the 'nudge_list' function above when users want a new sample of nudges. Currently, the areas being shown are only within 5km of the user. However, 'nudge_list' is very likely to be slow with larger rasters (although I haven't directly tested this yet).
+
+
+```{r nudge_subset}
+
+nudge_subset <- nudge_select(nudge_df = nudges, 
+                             n = 100,
+                             cutoff = FALSE,
+                             weight = TRUE,
+                             weighting_column = 'dec_score',
+                             weight_inflation = 10)
+
+
+```
+
+```{r nudge_subset_plot, warning=FALSE, fig.width=11}
+
+
+nl_p_nudge2 <- ggplot() +
+  geom_sf(data = conv_rast(wall_m, 27700), aes(fill = layer), col = NA) +
+  geom_point(data = nudge_subset, aes(x=lon,y=lat, col='Weighted nudges subset'))  +
+  
+  scale_fill_continuous(type= 'viridis', name = 'DECIDE score') +
+  scale_colour_manual(name = '', values = 'red') +
+  theme_bw() +
+  labs(x='', y='', title = 'Subsetted nudges') + 
+  theme(legend.margin=margin(t=-0.25,l=0.05,b=0.0,r=0.05, unit='cm')) 
+
+nl_p_nudge1 + nl_p_nudge2 + plot_layout(guides = 'collect')
+
+```
+
+
+### 3. Thin the nudges
+
+There is unlikely to be much point in providing the user with nudges that are very close together. The function 'nudge_thin' creates a grid whose resolution is defined by the user and samples from the points within each of the grid cels. The user also states how many points to sample from each grid and can specify whether to use a square or hexagonal grid (the latter being better for large areas). This uses the original raster layer and the 'nudge_select' function (although will also work with the 'nudge_list' function) and provides as output: a data frame with the thinned nudges, the grid as an sf object and the plot. The plot takes a while to produces (a few seconds), but obviously won't need to be produced for the app. 
+
+```{r thin_nudge, warning = FALSE, message = FALSE, echo = T}
+
+thinned_points <- nudge_thin(decide_raster = wall_m,
+                             nudge_df = nudge_subset,
+                             lon = 'lon',
+                             lat = 'lat',
+                             crs = 27700, 
+                             buffer_distance = 1000,
+                             sample_num = 1)
+
+thinned_points$plot
+
+```
+
+
+
+
+
+
