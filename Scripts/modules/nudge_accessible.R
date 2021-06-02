@@ -82,6 +82,9 @@ nudge_accessible <- function(nudges_df,
     theme_bw() 
   
   for(pls in 1:length(access_layers_sub)){
+    
+    if(dim(access_layers_sub[[pls]])[1]==0) next
+    
     p <- p + 
       geom_sf(data=access_layers_sub[[pls]], aes(colour = 'Accessible areas', fill = 'Accessible areas'))
   }
