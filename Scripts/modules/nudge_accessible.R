@@ -3,8 +3,12 @@
 # INPUT:
 # nudges_df, the sf dataframe that contains the nudges 
 # access_layers, accessible areas in the same location and same coordinates - could add functionality to check that this is the case. A single sf layer or a list of sf layers 
-# buffer, the buffer to create around each accessible are - on same scale as access_layers (so metres for us)
+# buffer, the buffer to create around each accessible are - on same scale as access_layers (so metres for us),
+# crs = ifelse(class(access_layers)=='list', st_crs(access_layers[[1]]), st_crs(access_layers)),
+# lon = 'lon', # the name of the longitude column in the data frame, only used if nudges_df is a dataframe
+# lat = 'lat',# the name of the latitude column in the data frame, only used if nudges_df is a dataframe
 # plot, return the plot or not. The plot is still stored regardless of True or false
+
 
 # OUTPUT: 
 # sf dataframe of nudges
@@ -15,10 +19,15 @@
 nudge_accessible <- function(nudges_df,
                              access_layers,
                              buffer = 100,
+                             crs = ifelse(class(access_layers)=='list', st_crs(access_layers[[1]])[[1]], st_crs(access_layers)),
+                             lon = 'lon',
+                             lat = 'lat',
                              plot = FALSE){
   
   require(tidyverse)
   require(sf)
+  
+  if(class(nudges_df)[1]=="data.frame") nudges_df <- st_as_sf(nudges_df, coords = c(lon, lat), crs = crs)
   
   # remove NULL objects from the list
   access_layers_sub <- access_layers[lengths(access_layers) != 0]
