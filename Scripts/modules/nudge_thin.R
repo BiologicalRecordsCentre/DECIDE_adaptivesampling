@@ -35,7 +35,32 @@ nudge_thin <- function(decide_raster, # the original raster layer
   spat_grd <- st_make_grid(conv_rast(decide_raster, crs), cellsize = buffer_distance, square = square)
   
   # convert nudges to sf points object
-  spat_nudge <- st_as_sf(nudge_df, coords = c(lon, lat), crs = crs)
+  
+  if(class(nudge_df)[1]=='data.frame'){
+    
+    spat_nudge <- st_as_sf(nudge_df, coords = c(lon, lat), crs = crs)
+    
+    # include this for plotting later so don't have to use an if() statement in the ggplot
+    orig_nudges <- nudge_df
+    
+  } else if(class(nudge_df)[1]=='sf'){
+    
+    spat_nudge <- nudge_df
+    
+    # include this for plotting later so don't have to use an if() statement in the ggplot
+    orig_nudges <- nudge_df %>%
+      mutate(lon = unlist(map(nudge_df$geometry,1)),
+             lat = unlist(map(nudge_df$geometry,2))) %>%
+      as.data.frame()
+    
+    warning('! if plot looks wrong, check to make sure that coordinates in sf geometry column are in order c(lon, lat)')
+    
+  } else {
+    
+    stop('! Function only works with objects of class "sf" and "data.frame"')
+  }
+  
+  
   
   # go through each grid cell, sample from all the points in the grid
   # return sample_num points per grid cell
@@ -64,7 +89,7 @@ nudge_thin <- function(decide_raster, # the original raster layer
     geom_sf(data = conv_rast(decide_raster, crs), aes(fill = layer), col = NA) +
     geom_sf(data = spat_grd, fill = NA, col = 'black') +
     geom_sf(data = do.call('rbind', l_out), aes(col = 'Thinned nudges'), pch = 20, size = 3, pch = 1)  +
-    geom_point(data = nudge_df, aes(x=lon, y=lat, col = 'Original nudges'), pch = 20, size = 1.5) +
+    geom_point(data = orig_nudges, aes(x=lon, y=lat, col = 'Original nudges'), pch = 20, size = 1.5) +
     theme_bw() +
     labs(y='Longtitude', x='Latitude') +
     scale_fill_continuous(type = 'viridis', name = 'Layer value') + 
