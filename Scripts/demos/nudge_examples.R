@@ -265,11 +265,6 @@ final_acc_loc <- lapply(all_outs, filter_distance,
                         method = 'buffer')
 
 
-t_acc <- final_acc_loc[[4]]
-
-t_acc
-
-
 ### function
 final_nudges <- nudge_accessible(nudges_df = thinned_points$nudges,
                                  access_layers = final_acc_loc,
