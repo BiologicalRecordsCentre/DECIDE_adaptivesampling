@@ -17,6 +17,7 @@ nudge_list <- function(decide_rast,
                         weight_inflation = 10) # how much to inflate the decide score weighting - will change how many 'bad' places will get selected
 {
   
+  require(tdigest)  
   require(raster)
   require(tidyverse)
   
@@ -25,7 +26,7 @@ nudge_list <- function(decide_rast,
   names(decide_df) <- c('lon', 'lat', 'dec_score')
   
   # quantile
-  qs <- quantile(decide_df$dec_score, probs = cutoff_value, na.rm = T)
+  qs <- tquantile(tdigest(decide_df$dec_score), probs = cutoff_value) #, na.rm = T)
   
   # get values above cutoff
   # currently only works for one cutoff value
