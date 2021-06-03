@@ -26,14 +26,14 @@ source("../../Scripts/modules/load_gridnumbers.R")
 ```
 
 
-We are going to run through some potential ideas for how the DECIDE score can be translated into nudges that can be suggested to people. The nudging process essentially follows these steps:
+This document will run through a potential workflow for translating the DECIDE score into nudges. The nudging process essentially follows these steps:
 
-1. List of nudges that exceed a user-determined quantile for a given area
-2. Select a user-determined subset of these nudges
-3. Determine which nudges are near to accessible areas
+1. Generate a list of potential nudge locations
+2. Select a user-determined subset of these nudge locations
+3. Determine which nudge locations are near to accessible areas
 4. Thin the nudges based on a user-defined grid
 
-First, need to prepare the raster data for use; load it in and filter to a location. In this case, the location is 5km around Wallingford
+First, need to prepare the raster data for use; load it in and crop to a location. In this case, the location is 5km around Wallingford.
 
 ```{r dec_rast, message = FALSE, warning = FALSE}
 
@@ -52,11 +52,11 @@ wall_m <- filter_distance(mgb,
 
 ```
 
-### 1. get a list of all nudges
+### 1. List of potential nudges
 
-To get a list of potential nudge locations we use the function **'nudge_list'**. This takes the raster we created above and converts it to a data frame. We can provide the function with a quantile value and a cutoff 'TRUE/FALSE' statement. The function identifies the values that exceed the quantile for the area of interest (defined by 'cutoff_value') and, if cutoff = TRUE, it will remove all the points falling below it. If cutoff = FALSE, it retains all the values irrespective of their score. The function **returns a data frame of potential nudge locations** whose length is determined by 'prop'; it's value defines the proportion of the total number of cells in an area that we want returned. The values can be weighted by the DECIDE score value, so that locations with high decide scores are preferentially selected. These values are often low, so I have inflated the effect of the DECIDE score by providing an inflation factor ('weight_inflation').
+The **'nudge_list'** function generates a list of potential nudge locations . This takes the raster we created above and converts it to a data frame. We can provide the function with a quantile value and a cutoff 'TRUE/FALSE' statement. The function identifies the values that exceed the quantile for the area of interest (defined by 'cutoff_value') and, if cutoff = TRUE, it will remove all the points falling below it. If cutoff = FALSE, it retains all the values irrespective of their score. The function returns a data frame of potential nudge locations whose length is determined by 'prop'; its value defines the proportion of the total number of cells in an area that we want returned. The values can be weighted by the DECIDE score value, so that locations with high decide scores are preferentially selected. These values are often low, so I have inflated the effect of the DECIDE score by providing an inflation factor ('weight_inflation').
 
-Below are some examples of the effects of the different parameters on the nudges returned; in these cases, changing the weightings when cutoff = TRUE/FALSE. NB if cutoff = FALSE and weight = FALSE, the function will return a random subset of background points.
+Below are some examples of the effects of the different parameters on the nudges returned. In the cases below, I have shown all combinations of weightings being turned on and off and the cutoff being turned on and off. NB if cutoff = FALSE and weight = FALSE, the function will return a random number (determined by 'prop') of background points.
 
 ```{r nudge_list_df_plots, echo = TRUE}
 
@@ -122,7 +122,7 @@ nl_p1 + nl_p2 + plot_layout(guides = 'collect')
 
 Here is a new data frame of weighted nudges from above and below the 90th percentile to use with the later functions.
 
-```{r nudge_list, echo=TRUE}
+```{r nudge_list, echo=TRUE, message = FALSE, warning = FALSE}
 
 # get a list of potential nudge locations
 nudges <- nudge_list(wall_m,
@@ -137,7 +137,7 @@ head(nudges)
 ```
 
 
-```{r nudge_list_plot, warning = FALSE, message = FALSE}
+```{r nudge_list_plot, warning = FALSE, message = FALSE, echo = FALSE}
 
 nl_p_nudge1 <- ggplot() +
   geom_sf(data = conv_rast(wall_m, 27700), aes(fill = layer), col = NA) +
@@ -156,7 +156,7 @@ nl_p_nudge1
 
 ### 2. Select a subset of these nudges
 
-We can get a specific number of these nudges using the function 'nudge_select'. This takes the total number of nudges we want and samples the data frame outputted from the nudge_list function. The function nudge_select can also be weighted by the DECIDE score, which can be inflated by a user-determined amount, to return only the highest value locations. The reason this function is split from the last one is that I can imagine a user wanting to randomise the nudges they are sent. With the functions split, it means that we would only have to run 'nudge_select' as opposed to also running the 'nudge_list' function above when users want a new sample of nudges. Currently, the areas being shown are only within 5km of the user. However, 'nudge_list' is very likely to be slow with larger rasters because of the raster::as.data.frame function (although I haven't directly tested this yet). The 'all nudges' plot is the same as the previous plot and is being compared to the 100 nudges sampled from it weighted by the DECIDE score.
+We can get a specific number of these nudges using the function 'nudge_select'. This takes the total number of nudges we want (determined by 'n') and samples the data frame outputted from the 'nudge_list' function. The function 'nudge_select' can also be weighted by the DECIDE score, which can be inflated by a user-determined amount, to return only the highest value locations. The reason this function is split from the last one is that I can imagine a user wanting to randomise the nudges they are sent. With the functions split, it means that we would only have to run 'nudge_select' as opposed to also running the 'nudge_list' function above when users want a new sample of nudges. Currently, the areas being shown are only within 5km of the user. However, 'nudge_list' is very likely to be slow with larger rasters because of the 'raster::as.data.frame' function (although I haven't directly tested this yet but have encountered problems in the past). The 'all nudges' panel in the plots below is the same as the previous plot and is being compared to the 100 nudges selected from it weighted by the DECIDE score.
 
 
 ```{r nudge_subset}
@@ -171,7 +171,7 @@ nudge_subset <- nudge_select(nudge_df = nudges,
 
 ```
 
-```{r nudge_subset_plot, warning=FALSE, fig.width=11}
+```{r nudge_subset_plot, echo = FALSE, warning=FALSE, fig.width=11}
 
 
 nl_p_nudge2 <- ggplot() +
@@ -192,9 +192,9 @@ nl_p_nudge1 + nl_p_nudge2 + plot_layout(guides = 'collect')
 
 ### 3. Find nudges close to accessible areas
 
-We need to find the nudges that are actually accessible to the user. For this, we can use the 'nudge_accessible' function. It takes an sf dataframe of nudges,  accessible areas (i.e. footpaths etc.) and a buffer distance, and returns all the nudges that fall within this region.
+We need to find the nudges that are actually accessible to recorders. For this, we can use the 'nudge_accessible' function. It takes an sf dataframe or just normal dataframe of nudges,  accessible areas (i.e. footpaths etc.) and a buffer distance, and returns all the nudges that fall within this region. The plot output is optional but is a nice 'sense check'.
 
-```{r load_access_locs, echo = F, message = F, warning = F}
+```{r load_access_locs, echo = F, message = F, warning = F,results='hide'}
 
 ## function to choose points close to accessible features 
 
@@ -422,7 +422,7 @@ accessible_nudges <- nudge_accessible(nudges_df = nudge_subset,
 
 ### 4. Thin the nudges
 
-There is unlikely to be much point in providing the user with nudges that are very close together. The function 'nudge_thin' creates a grid whose resolution is defined by the user and samples from the points within each of the grid cels. The user also states how many points to sample from each grid and can specify whether to use a square or hexagonal grid (the latter being better for large areas). This uses the original raster layer and the 'nudge_select' function (although will also work with the 'nudge_list' function) and provides as output: a data frame with the thinned nudges, the grid as an sf object and the plot. The plot takes a while to produces (a few seconds), but obviously won't need to be produced for the app.
+There is unlikely to be much point in providing the user with nudges that are very close together. The function 'nudge_thin' creates a grid whose resolution is defined by the user and samples from the points within each of the grid cells. The user also states how many points to sample from each cell and can specify whether to use a square or hexagonal grid (the latter being better for large areas). This uses the original raster layer and the 'nudge_select' function (although will also work with the 'nudge_list' function) and provides as output: a data frame with the thinned nudges, the grid as an sf object and the plot. The plot takes a while to produce (a few seconds), but obviously won't need to be produced for the app. This method of 'thinning' the nudges does mean that some nudges will be close together if they are in adjacent cells. I don't think this matters too much and I couldn't figure out how to do it based on raw distances between each point.
 
 
 ```{r thin_nudge, warning = FALSE, message = FALSE, echo = T}
@@ -442,7 +442,9 @@ thinned_nudges$plot
 
 ### "Final" nudges
 
-```{r final_nudges, message = FALSE, warning = FALSE}
+The nudges can then be plotted for a user!
+
+```{r final_nudges, echo = FALSE, message = FALSE, warning = FALSE}
 
 ggplot() +
   geom_sf(data = conv_rast(wall_m, 27700), aes(fill=layer), colour = NA) +
@@ -454,10 +456,55 @@ ggplot() +
 
 ```
 
+### One thing to note
+
+The nudging process doesn't take that long but here are some time estimates for the same process without any of the plots being generated (as it would be in the app). 
 
 
+```{r timings, warning = FALSE, message = FALSE}
+
+t_nl <- (system.time(nudges <- nudge_list(wall_m,
+                                          prop = 0.1, 
+                                          cutoff_value = 0.9, 
+                                          cutoff = FALSE,
+                                          weight = TRUE,
+                                          weight_inflation = 10)))
+
+t_ns <- system.time(nudge_subset <- nudge_select(nudge_df = nudges, 
+                                                 n = 100,
+                                                 cutoff = FALSE,
+                                                 weight = TRUE,
+                                                 weighting_column = 'dec_score',
+                                                 weight_inflation = 10))
+
+t_na <- system.time(accessible_nudges <- nudge_accessible(nudges_df = nudge_subset,
+                                                          access_layers = final_acc_loc,
+                                                          buffer = 200,
+                                                          crs = 27700,
+                                                          lon = 'lon',
+                                                          lat = 'lat',
+                                                          plot = FALSE))
+
+t_nt <- system.time(thinned_nudges <- nudge_thin(decide_raster = wall_m,
+                                                 nudge_df = accessible_nudges$nudges,
+                                                 lon = 'lon',
+                                                 lat = 'lat',
+                                                 crs = 27700, 
+                                                 buffer_distance = 1000,
+                                                 sample_num = 1))
+
+time_df <- rbind(t_nl, t_ns, t_na, t_nt) %>% 
+  as.data.frame() 
+
+rownames(time_df) <- c('nudge_list', 'nudge_select', 'nudge_accessible', 'nudge_thin')
+
+time_df <- time_df %>% 
+  rownames_to_column(var = 'Function')
+
+time_df
 
 
+```
 
-
+The total elapsed time for this nudging is `r sum(time_df$elapsed)`. 
 
