@@ -194,7 +194,7 @@ nl_p_nudge1 + nl_p_nudge2 + plot_layout(guides = 'collect')
 
 We need to find the nudges that are actually accessible to recorders. For this, we can use the 'nudge_accessible' function. It takes an sf dataframe or just normal dataframe of nudges,  accessible areas (i.e. footpaths etc.) and a buffer distance, and returns all the nudges that fall within this region. The plot output is optional but is a nice 'sense check'.
 
-```{r load_access_locs, echo = F, message = F, warning = F,results='hide'}
+```{r load_access_locs, echo = F, message = F, warning = F, results='hide'}
 
 ## function to choose points close to accessible features 
 
