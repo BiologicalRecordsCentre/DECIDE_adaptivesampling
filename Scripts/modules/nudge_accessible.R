@@ -63,9 +63,10 @@ nudge_accessible <- function(nudges_df,
   
   if(dim(int_nudge)[1]==0){
     
-    print('! No nudges within buffered region; returning NULL oobject. Consider increasing buffer size')
+    print('! No nudges within buffered region; returning original nudges object with no plot. Consider increasing buffer size')
     
-    return(NULL)
+    return(list(nudges = nudges_df,
+                plot = NULL))
     
   }
   
