@@ -26,9 +26,9 @@ Our current modelling workflow has two main outputs for **each species**. The fi
 
 ```{r prob_pres, warning = F, message=F, echo = F}
 
-adgr_p <- raster(list.files('../../Data/example_for_rich/rf_models/', pattern = 'meanpred', full.names = T)[1])
-adgr_v <- raster(list.files('../../Data/example_for_rich/rf_models/', pattern = 'quantile', full.names = T)[1])
 
+adgr_p <- raster(list.files('../../Data/example_for_rich/rf_models/', pattern = 'meanpred', full.names = T)[5])
+adgr_v <- raster(list.files('../../Data/example_for_rich/rf_models/', pattern = 'quantile', full.names = T)[5])
 
 uk_map <- st_as_sf(getData("GADM", country = "GBR", level = 1, path='../../Data/'))
 uk_map <- st_transform(uk_map, 27700)
@@ -40,8 +40,9 @@ adgr_vc <- mask(adgr_v, gb_map)
 par(mfrow = c(1,2))
 par(mar = c(3,3,3,5))
 
-plot(adgr_pc, main='Cistus forester probability of presence', col=magma(50), cex.main=0.9)
-plot(adgr_vc, main='Cistus forester uncertainty', col=magma(50), cex.main=0.9)
+
+plot(adgr_pc, main='Broad-bordered White Underwing\nprobability of presence', col=magma(50), cex.main=0.9)
+plot(adgr_vc, main='Broad-bordered White Underwing\nuncertainty', col=magma(50), cex.main=0.9)
 
 par(mfrow = c(1,1))
 
@@ -87,3 +88,23 @@ It is important to note that there are various aspects of the DECIDE score that 
 1. This DECIDE score is based solely on the models, not user preferences and the other factors that we have previously discussed 
 2. Currently, the DECIDE score is completely static for this first iteration. In the final version of the app species will be toggled on and off depending on various filters. For example, species that aren't flying at the current time of year will be removed, species that are of conservation concern could be highlighted, people might be able to choose 'preferred' species etc.
 3. The colour scheme is still a work in progress, and can be altered to highlight the best areas.
+
+```{r exit, echo = F}
+
+knitr::knit_exit()
+
+```
+
+
+## What is the DECIDE score telling us?
+
+### Exploring correlations
+
+```{r setup_corrs}
+
+
+sum_pres <- sum(cellStats(preds))
+
+
+```
+
