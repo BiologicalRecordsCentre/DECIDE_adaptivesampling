@@ -506,7 +506,5 @@ time_df
 
 ```
 
-Very quick test
-
 The total elapsed time for this nudging is `r sum(time_df$elapsed)`. 
 
