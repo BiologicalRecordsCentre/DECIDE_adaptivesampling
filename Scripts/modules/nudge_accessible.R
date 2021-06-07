@@ -32,7 +32,15 @@ nudge_accessible <- function(nudges_df,
   # remove NULL objects from the list
   access_layers_sub <- access_layers[lengths(access_layers) != 0]
   
-  if(class(access_layers_sub)[1]=='list'){
+  ## This for else if combination could really be improved and probably sped up
+  if(class(access_layers_sub)[1]=='list' & length(access_layers_sub)==1){ # sf object stored as a one item list
+    
+    access_layers_sub <- access_layers_sub[[1]]
+    
+    # if one layer, buffer it
+    shapes <- st_union(st_buffer(access_layers_sub, buffer))
+    
+  } else if(class(access_layers_sub)[1]=='list' && length(access_layers_sub)>1){ # a list of multiple sf objects
     
     ## add error code to check the class of each item in list
     
@@ -43,10 +51,11 @@ nudge_accessible <- function(nudges_df,
     ## !! make this BETTER!! So hacky!! !! ##
     shapes <- st_union(shapes_list[[1]], shapes_list[[2]])
     
-    # use a for loop to combine the other ones
-    for(i in 3:length(shapes_list)){ shapes <- st_union(shapes, shapes_list[[i]]) }
+    # use a for loop to combine the other ones if the length of shape > 2
+    if(length(shapes_list)>2) for(i in 3:length(shapes_list)){ shapes <- st_union(shapes, shapes_list[[i]]) }
     
-  } else if(class(access_layers_sub)[1]=='sf'){
+    
+  } else if(class(access_layers_sub)[1]=='sf'){ # a single sf object
     
     # if one layer, buffer it
     shapes <- st_union(st_buffer(access_layers_sub, buffer))
