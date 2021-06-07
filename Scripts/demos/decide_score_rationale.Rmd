@@ -94,6 +94,36 @@ knitr::knit_exit()
 
 ```
 
+## Different DECIDE scores
+
+$$ProbabilityOfPresence * \sqrt{Uncertainty}$$  $$ProbabilityOfPresence*Uncertainty$$  $$\sqrt{ProbabilityOfPresence}*Uncertainty$$  
+
+
+```{r comp_dec_scores}
+
+sqvar_b <- raster('/data-s3/thoval/sdm_outputs/decide_scores/butterfly_PA_thinned_10000nAbs_decide_score_sqroot_var_preds_weight_mean.grd')
+eq_b <- raster('/data-s3/thoval/sdm_outputs/decide_scores/butterfly_PA_thinned_10000nAbs_decide_score_equal_weighting_weight_mean.grd')
+sqpred_b <- raster('/data-s3/thoval/sdm_outputs/decide_scores/butterfly_PA_thinned_10000nAbs_decide_score_sqroot_preds_var_weight_mean.grd')
+
+
+sqvar_m <- raster('/data-s3/thoval/sdm_outputs/decide_scores/moth_PA_thinned_10000nAbs_decide_score_sqroot_var_preds_weight_mean.grd')
+eq_m <- raster('/data-s3/thoval/sdm_outputs/decide_scores/moth_PA_thinned_10000nAbs_decide_score_equal_weighting_weight_mean.grd')
+sqpred_m <- raster('/data-s3/thoval/sdm_outputs/decide_scores/moth_PA_thinned_10000nAbs_decide_score_sqroot_preds_var_weight_mean.grd')
+
+
+par(mfrow = c(1,3))
+plot(sqvar_b)
+plot(eq_b)
+plot(sqpred_b)
+
+
+plot(sqvar_m)
+plot(eq_m)
+plot(sqpred_m)
+par(mfrow = c(1,1))
+
+
+```
 
 ## What is the DECIDE score telling us?
 
