@@ -1,69 +1,59 @@
+## Get metadata associated with the access for each nudge
 
-## 
+## INPUT: 
+# the thinned nudges
+# access layers
+# buffer - same as the one used for nudge_accessible
+# metadata_col_names - names of the columns or objects that we want returned for each of the accessible layers
+# if we add more layers or change any, this list will need to be updated
 
-library(sf)
 
-tn_df = thinned_nudges$nudges
-access = final_acc_loc
-buffer = 200
-
-
-# remove NULL items in list and get each layer buffered
-shapes_list <- lapply(access[lengths(access) != 0], FUN = function(x) ((st_buffer(x, buffer))))
-
-out_nudge <- lapply(1:dim(tn_df)[1], FUN = function(n) { # I want to find which shapes each point is in
+nudge_metadata <- function(nudges_df = thinned_nudges$nudges,
+                           access = final_acc_loc,
+                           buffer = 200,
+                           metadata_col_names = c('ROW_TYPE', 'function_', 'Descrip',
+                                                  'accessType', 'Name', 'fclass')) { # names need to be manually entered into here
   
-  out_shape <- lapply(1:length(shapes_list), FUN = function(x){
+  # remove NULL items in list and get each layer buffered
+  shapes_list <- lapply(access[lengths(access) != 0], FUN = function(x) (st_buffer(x, buffer)))
+  
+  # find which shapes each point is in and return their metadata for each point
+  out_nudge <- lapply(1:dim(nudges_df)[1], FUN = function(n) {  # go through each point in turn
     
-    # find the shapes that the point falls within
-    if(sf::st_within(tn_df[n,], shapes_list[[x]]) %>% lengths > 0){# does the point fall within any of the shape?
+    # for each point, go through the different access layers
+    out_shape <- lapply(1:length(shapes_list), FUN = function(x){ 
       
-      shps_within <- shapes_list[[x]][sf::st_within(tn_df[n,], shapes_list[[x]], sparse = F),]
+      # does the point fall within any of the shape?
+      if(sf::st_within(nudges_df[n,], shapes_list[[x]]) %>% lengths > 0){
+        
+        # get the items in the list that the point of interest falls within
+        shps_within <- shapes_list[[x]][sf::st_within(nudges_df[n,], shapes_list[[x]], sparse = F),]
+        
+        # find the columns of interest and return it as a dataframe
+        sw_df <- shps_within[,names(shps_within) %in% metadata_col_names] # %>% 
+          
+        if(dim(sw_df)[2]>2) sw_df <- sw_df[,2:3]
+        
+        sw_df <- sw_df %>% 
+          mutate(lon = unlist(map(nudges_df[n,]$geometry,1)),
+                 lat = unlist(map(nudges_df[n,]$geometry,2)),
+                 geometry = NULL) %>%
+          as.data.frame()
+        
+        colnames(sw_df) <- c('layer_name', 'lon', 'lat')
+        
+        return(sw_df)
+        
+      } else(return(NULL))
       
-      sw_df <- shps_within[,names(shps_within) %in% c('ROW_TYPE', 'function_', 'Descrip',
-                                                      'accessType', 'Name', 'fclass')] %>% ## need to find all other names
-        mutate(lon = unlist(map(tn_df[n,]$geometry,1)),
-               lat = unlist(map(tn_df[n,]$geometry,2)),
-               geometry = NULL) %>%
-        as.data.frame()
       
-      colnames(sw_df) <- c('layer_name', 'lon', 'lat')
-      
-      return(sw_df)
-      
-    } else(return(NULL))
-    
-    
     })
+    
+    
+    return(do.call(rbind, out_shape))
+    
+  })
   
+  return(do.call(rbind, out_nudge))
   
-  return(do.call(rbind, out_shape))
-  
-})
-
-do.call(rbind, out_nudge)
-
-# # # if the point falls within buffered region store its index, otherwise skip to next loop
-# # ifelse(any(int_ind), int_nudge <- tn_df[int_ind,], return(NULL))
-# 
-# # find the column containing the name
-# cols <- shapes_list[[x]][,names(shapes_list[[x]]) %in% c('ROW_TYPE', 'function_')]
-# 
-# int_nudge[,names(int_nudge) %in% c('ROW_TYPE', 'function_')]
-# 
-# output <- cols %>%
-#   mutate(lon = unlist(map(tn_df[1,]$geometry,1)),
-#          lat = unlist(map(tn_df[1,]$geometry,2)),
-#          geometry = NULL) %>%
-#   as.data.frame() %>% 
-#   rename(layer_name = ROW_TYPE)
-
-
-
-# output: data frame with:
-
-
-# shapes_list
-# 
-# do.call(c, lapply(1:dim(tn_df)[1], FUN = function(x) any(sf::st_within(tn_df[1,], shapes_list[[1]], sparse = FALSE))))
-# shapes <- st_union(shapes_list[[1]], shapes_list[[2]])
+}
