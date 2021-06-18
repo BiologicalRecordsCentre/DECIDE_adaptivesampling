@@ -213,7 +213,7 @@ system.time(
       names(m_quant_av) <- 'error'
     } else {
       
-      m_pred_av <- crop_err
+      m_pred_av <- crop_pred
       m_quant_av <- crop_err
       
     }

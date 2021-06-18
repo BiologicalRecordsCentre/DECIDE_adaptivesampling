@@ -14,6 +14,8 @@ library(raster)
 library(sf)
 library(viridis)
 
+source("../../Scripts/modules/filter_distance.R")
+
 
 ```
 
@@ -97,10 +99,11 @@ knitr::knit_exit()
 
 ## Different DECIDE scores
 
-$$ProbabilityOfPresence * \sqrt{Uncertainty}$$  $$ProbabilityOfPresence*Uncertainty$$  $$\sqrt{ProbabilityOfPresence}*Uncertainty$$  
+
+I want to investigate different ways of combining the probability of presence and uncertainty layers for each species, to see what effect it has on values at a GB and local scale. The three different ways are the current way $$ProbabilityOfPresence * \sqrt{Uncertainty}$$, an equal weighting of presence and uncertainty $$ProbabilityOfPresence*Uncertainty$$ and weighted towards uncertainty $$\sqrt{ProbabilityOfPresence}*Uncertainty$$. The average across all species is then taken, weighted by a species' probability of presence in a grid cell.
 
 
-```{r comp_dec_scores}
+```{r comp_dec_scores, message=F, warning=F, echo=F}
 
 sqvar_b <- raster('/data-s3/thoval/sdm_outputs/decide_scores/butterfly_PA_thinned_10000nAbs_decide_score_sqroot_var_preds_weight_mean.grd')
 eq_b <- raster('/data-s3/thoval/sdm_outputs/decide_scores/butterfly_PA_thinned_10000nAbs_decide_score_equal_weighting_weight_mean.grd')
@@ -113,18 +116,56 @@ sqpred_m <- raster('/data-s3/thoval/sdm_outputs/decide_scores/moth_PA_thinned_10
 
 
 par(mfrow = c(1,3))
-plot(sqvar_b)
-plot(eq_b)
-plot(sqpred_b)
+plot(sqvar_b, col=viridis(50), main = 'butterfly, sqroot var')
+plot(eq_b, col=viridis(50), main = 'equal weighting')
+plot(sqpred_b, col=viridis(50), main = 'sqroot pred')
 
 
-plot(sqvar_m)
-plot(eq_m)
-plot(sqpred_m)
+plot(sqvar_m, col=viridis(50), main = 'moth, sqroot var')
+plot(eq_m, col=viridis(50), main = 'equal weighting')
+plot(sqpred_m, col=viridis(50), main = 'sqroot pred')
+par(mfrow = c(1,1))
+
+
+
+```
+
+Going to zoom in on Aberlady Bay, Scotland.
+
+```{r aberlady, message = F, warning = F, echo=F}
+
+location <- c(-2.860564, 56.014902)
+distance <- 5000
+
+r_list <- list(sqvar_b, eq_b, sqpred_b, sqvar_m, eq_m, sqpred_m)
+p_out <- list()
+
+for(i in 1:length(r_list)){
+  
+  fc <- filter_distance(r_list[[i]],
+                        location = location, 
+                        distance = distance,
+                        method = 'buffer')
+  p_out[[i]] <- fc  
+  
+}
+
+par(mfrow = c(2,3))
+plot(p_out[[1]], col=viridis(50), main = 'butterfly, sqroot var')
+plot(p_out[[2]], col=viridis(50), main = 'equal weighting')
+plot(p_out[[3]], col=viridis(50), main = 'sqroot pred')
+
+
+plot(p_out[[4]], col=viridis(50), main = 'moth, sqroot var')
+plot(p_out[[5]], col=viridis(50), main = 'equal weighting')
+plot(p_out[[6]], col=viridis(50), main = 'sqroot pred')
 par(mfrow = c(1,1))
 
 
 ```
+
+
+As you can see, the methods of combining DECIDE scores across species show some differences at the GB scale, but look very similar at the local scale. I guess this probably has something to do with the relationship between probability of presence and uncertainty in any given region - i.e. that uncertainty is usually higher at intermediate values of probability of presence. Need to investigate different ways of combining across species to see what effect that has on the DECIDE Score.
 
 ## What is the DECIDE score telling us?
 

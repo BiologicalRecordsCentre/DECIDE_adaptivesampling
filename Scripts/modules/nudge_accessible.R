@@ -54,7 +54,6 @@ nudge_accessible <- function(nudges_df,
     # use a for loop to combine the other ones if the length of shape > 2
     if(length(shapes_list)>2) for(i in 3:length(shapes_list)){ shapes <- st_union(shapes, shapes_list[[i]]) }
     
-    
   } else if(class(access_layers_sub)[1]=='sf'){ # a single sf object
     
     # if one layer, buffer it
