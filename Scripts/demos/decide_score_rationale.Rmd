@@ -28,6 +28,7 @@ Our current modelling workflow has two main outputs for **each species**. The fi
 
 ```{r prob_pres, warning = F, message=F, echo = F}
 
+
 adgr_p <- raster(list.files('../../Data/example_for_rich/rf_models/', pattern = 'meanpred', full.names = T)[5])
 adgr_v <- raster(list.files('../../Data/example_for_rich/rf_models/', pattern = 'quantile', full.names = T)[5])
 
@@ -40,6 +41,7 @@ adgr_vc <- mask(adgr_v, gb_map)
 
 par(mfrow = c(1,2))
 par(mar = c(3,3,3,5))
+
 
 plot(adgr_pc, main='Broad-bordered White Underwing\nprobability of presence', col=magma(50), cex.main=0.9)
 plot(adgr_vc, main='Broad-bordered White Underwing\nuncertainty', col=magma(50), cex.main=0.9)
@@ -89,7 +91,6 @@ It is important to note that there are various aspects of the DECIDE score that 
 2. Currently, the DECIDE score is completely static for this first iteration. In the final version of the app species will be toggled on and off depending on various filters. For example, species that aren't flying at the current time of year will be removed, species that are of conservation concern could be highlighted, people might be able to choose 'preferred' species etc.
 3. The colour scheme is still a work in progress, and can be altered to highlight the best areas.
 
-
 ```{r exit, echo = F}
 
 knitr::knit_exit()
@@ -97,6 +98,7 @@ knitr::knit_exit()
 ```
 
 ## Different DECIDE scores
+
 
 I want to investigate different ways of combining the probability of presence and uncertainty layers for each species, to see what effect it has on values at a GB and local scale. The three different ways are the current way $$ProbabilityOfPresence * \sqrt{Uncertainty}$$, an equal weighting of presence and uncertainty $$ProbabilityOfPresence*Uncertainty$$ and weighted towards uncertainty $$\sqrt{ProbabilityOfPresence}*Uncertainty$$. The average across all species is then taken, weighted by a species' probability of presence in a grid cell.
 
@@ -162,6 +164,7 @@ par(mfrow = c(1,1))
 
 ```
 
+
 As you can see, the methods of combining DECIDE scores across species show some differences at the GB scale, but look very similar at the local scale. I guess this probably has something to do with the relationship between probability of presence and uncertainty in any given region - i.e. that uncertainty is usually higher at intermediate values of probability of presence. Need to investigate different ways of combining across species to see what effect that has on the DECIDE Score.
 
 ## What is the DECIDE score telling us?
@@ -175,3 +178,4 @@ sum_pres <- sum(cellStats(preds))
 
 
 ```
+
