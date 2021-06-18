@@ -6,7 +6,7 @@ output:
 ---
 
 
-```{r}
+```{r, echo = F, include = FALSE}
 
 library(tidyverse)
 library(doParallel)
@@ -20,10 +20,7 @@ source("../../Scripts/modules/filter_distance.R")
 
 
 
-## preparation
-
-
-```{r species_data, warning=F}
+```{r species_data, warning=F, echo = F, message = F, include = F}
 
 # model = c('rf', 'lr', 'gam')
 taxa = 'moth'
@@ -194,6 +191,7 @@ plot_rel <- function(pred_lay, var_lay, dec) {
 
 
 ```
+
 
 ```{r, relationship1}
 

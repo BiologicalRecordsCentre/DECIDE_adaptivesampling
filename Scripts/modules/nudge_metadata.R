@@ -8,8 +8,8 @@
 # if we add more layers or change any, this list will need to be updated
 
 
-nudge_metadata <- function(nudges_df = thinned_nudges$nudges,
-                           access = final_acc_loc,
+nudge_metadata <- function(nudges_df,
+                           access,
                            buffer = 200,
                            metadata_col_names = c('ROW_TYPE', 'function_', 'Descrip',
                                                   'accessType', 'Name', 'fclass')) { # names need to be manually entered into here
@@ -32,13 +32,14 @@ nudge_metadata <- function(nudges_df = thinned_nudges$nudges,
         # find the columns of interest and return it as a dataframe
         sw_df <- shps_within[,names(shps_within) %in% metadata_col_names] # %>% 
           
-        if(dim(sw_df)[2]>2) sw_df <- sw_df[,2:3]
+        if(dim(sw_df)[2]>2) sw_df <- sw_df[,2:3]; warning('!! dropping first column, check that the layer names make sense !!')
         
         sw_df <- sw_df %>% 
           mutate(lon = unlist(map(nudges_df[n,]$geometry,1)),
                  lat = unlist(map(nudges_df[n,]$geometry,2)),
                  geometry = NULL) %>%
-          as.data.frame()
+          as.data.frame() %>% 
+          distinct()
         
         colnames(sw_df) <- c('layer_name', 'lon', 'lat')
         

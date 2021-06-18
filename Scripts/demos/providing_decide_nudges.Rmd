@@ -20,6 +20,7 @@ source("../../Scripts/modules/nudge_thin.R")
 source("../../Scripts/modules/nudge_select.R")
 source("../../Scripts/modules/nudge_list.R")
 source("../../Scripts/modules/nudge_accessible.R")
+source("../../Scripts/modules/nudge_metadata.R")
 source("../../Scripts/modules/load_gridnumbers.R")
 
 
@@ -456,9 +457,27 @@ ggplot() +
 
 ```
 
-### One thing to note
+## Get metadata for nudges
 
-The nudging process doesn't take that long but here are some time estimates for the same process without any of the plots being generated (as it would be in the app). 
+If they then click on a point they could get some metadata about the layers that the point is close to. For now, this is only information from the accessible layers, but it would be easy to expand this to what landcover type the nudge is in, for example.
+
+```{r meta, warning=F}
+
+metadata <- nudge_metadata(nudges_df = thinned_nudges$nudges,
+                           access = final_acc_loc,
+                           buffer = 200)
+metadata
+
+metadata_single <- nudge_metadata(nudges_df = thinned_nudges$nudges[3,],
+                                  access = final_acc_loc,
+                                  buffer = 200)
+metadata_single
+
+```
+
+### Timings
+
+The nudging process doesn't take that long but here are some time estimates for the same process without any of the plots being generated (as it would be in the app). I've run the nudge_metadata code for all the points and a single point on its own to understand the time difference between them.
 
 
 ```{r timings, warning = FALSE, message = FALSE}
@@ -493,10 +512,20 @@ t_nt <- system.time(thinned_nudges <- nudge_thin(decide_raster = wall_m,
                                                  buffer_distance = 1000,
                                                  sample_num = 1))
 
-time_df <- rbind(t_nl, t_ns, t_na, t_nt) %>% 
+t_md <- system.time(metadata <- nudge_metadata(nudges_df = thinned_nudges$nudges,
+                                               access = final_acc_loc,
+                                               buffer = 200))
+
+t_mds <- system.time(metadata_single <- nudge_metadata(nudges_df = thinned_nudges$nudges[1,],
+                                                       access = final_acc_loc,
+                                                       buffer = 200))
+
+
+
+time_df <- rbind(t_nl, t_ns, t_na, t_nt, t_md, t_mds) %>% 
   as.data.frame() 
 
-rownames(time_df) <- c('nudge_list', 'nudge_select', 'nudge_accessible', 'nudge_thin')
+rownames(time_df) <- c('nudge_list', 'nudge_select', 'nudge_accessible', 'nudge_thin', 'nudge_metadata_all', 'nudge_metadata_single')
 
 time_df <- time_df %>% 
   rownames_to_column(var = 'Function')
@@ -506,5 +535,5 @@ time_df
 
 ```
 
-The total elapsed time for this nudging is `r sum(time_df$elapsed)`. 
+The total elapsed time for nudging and getting a single point's metadata is `r sum(time_df$elapsed[c(1:4,6)])`. 
 
