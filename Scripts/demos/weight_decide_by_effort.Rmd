@@ -223,7 +223,7 @@ count_records <- function(records_df, # sf object of record counts
   # convert to a spatial points data frame to match with raster
   xy <- record_counts[,c("lon","lat")]
   spdf.recs <- SpatialPointsDataFrame(coords = xy, data = record_counts,
-                                        proj4string = CRS("+init=epsg:27700")) 
+                                      proj4string = CRS("+init=epsg:27700")) 
   
   ### create counts raster to store number of records in each cell ###
   # this is used to make an 'effort' layer
@@ -252,6 +252,65 @@ rec_counts <- count_records(records_df = records, template_raster = dec_crop)
 plot(rec_counts)
 
 ```
+
+## function to create a smoothed recording layer
+
+```{r}
+
+smooth_recording <- function(weighted_layer, # layer to be weighted
+                             effort_raster, 
+                             recording_impact = 10) # the larger the value the less impact it has
+{
+  
+  smoothed_effort <- focal(x = effort_raster, 
+                           w = matrix(c(rep(0.1, 5),
+                                        0.1, 0.3, 0.3, 0.3, 0.1,
+                                        0.1, 0.3,   1, 0.3, 0.1,
+                                        0.1, 0.3, 0.3, 0.3, 0.1,
+                                        rep(0.1, 5)), 
+                                      nrow = 5, ncol = 5),
+                           pad = TRUE,
+                           padValue = 0)
+  
+  # Convert recording to weighting
+  weighting <- smoothed_effort
+  weighting <- 1/(1+(weighting/recording_impact))
+  
+  # set minimum value to original layer
+  M <- minValue(weighted_layer)
+  
+  adjusted_score <- weighted_layer * weighting
+  adjusted_score[adjusted_score < M] <- M # change the lowest records to be equal to the original decide score minimum
+  
+  
+  
+  return(list(smoothed_effort = smoothed_effort,
+              weighted_score = adjusted_score))
+         
+}
+
+```
+
+```{r}
+
+sr <- smooth_recording(weighted_layer = dec_crop,
+                       effort_raster = rec_counts,
+                       recording_impact = 1)
+plot(sr$weighted_score)
+
+```
+create weighting
+
+```{r}
+
+# 1-(weighting/weighting^recording_impact) # this used to be 1/() but this has the opposite effect as intended if the weighting is between 0-1
+# this will be wrong if the weighting > 10
+
+effort_raster*(1-recording_impact)
+
+
+```
+
 
 
 
