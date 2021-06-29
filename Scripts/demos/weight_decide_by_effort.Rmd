@@ -189,8 +189,10 @@ st_dfm <- st_as_sf(dfm, coords = c('lon', 'lat'), crs = 27700)
 
 # get count of all records as a raster
 # crop
-records <- filter_distance(st_dfm,
-                           distance = 5000)
+records <- filter_distance(obj = st_dfm,
+                           distance = distance,
+                           location = location, 
+                           method  = 'buffer')
 
 plot(dec_crop)
 points(x = dfm$lon, y = dfm$lat, col = 'red')
@@ -199,6 +201,9 @@ plot(st_geometry(records), add = T, pch = 20)
 
 
 ```
+## function to count the number of records that falls in each cell of the raster
+
+This might not work if the data and the raster are at different resolutions. Very slow on large rasters. Might be possible to do this in package sf rather than relying on raster 
 
 ```{r}
 
@@ -211,14 +216,13 @@ count_records <- function(records_df, # sf object of record counts
   # Get the counts of records per cell and store as data frame
   record_counts <- records_df %>% 
     mutate(lon = unlist(map(records_df$geometry, 1)),
-           lat = unlist(map(records_df$geometry, 2))) %>% 
-    group_by(lon, lat) %>% 
-    tally %>% as.data.frame() %>% 
+           lat = unlist(map(records_df$geometry, 2)))  %>% 
+    as.data.frame() %>% 
     mutate(geometry = NULL)
   
   # convert to a spatial points data frame to match with raster
   xy <- record_counts[,c("lon","lat")]
-  spdf.counts <- SpatialPointsDataFrame(coords = xy, data = record_counts,
+  spdf.recs <- SpatialPointsDataFrame(coords = xy, data = record_counts,
                                         proj4string = CRS("+init=epsg:27700")) 
   
   ### create counts raster to store number of records in each cell ###
@@ -227,8 +231,10 @@ count_records <- function(records_df, # sf object of record counts
   
   # make a raster of zeroes for input
   n_recs[!is.na(n_recs)] <- 0
+  
   # get the cell index for each point and make a table:
-  counts = table(cellFromXY(n_recs,spdf.tax))
+  counts = table(cellFromXY(n_recs,spdf.recs))
+  
   # fill in the raster with the counts from the cell index:
   n_recs[as.numeric(names(counts))] <- counts
   
@@ -236,39 +242,16 @@ count_records <- function(records_df, # sf object of record counts
   
 }
 
-count_records(records_df = records, template_raster = dec_crop)
+```
 
-#### function does what is below
+output of function - a raster with number of counts per cell
 
-# store counts as a data.frame
-rec_count <- records %>% 
-  mutate(lon = unlist(map(records$geometry, 1)),
-         lat = unlist(map(records$geometry, 2))) %>% 
-  group_by(lon, lat) %>% 
-  tally %>% as.data.frame() %>% 
-  mutate(geometry = NULL)
-rec_count
+```{r}
 
-xy <- rec_count[,c("lon","lat")]
-spdf.tax <- SpatialPointsDataFrame(coords = xy, data = rec_count,
-                                   proj4string = CRS("+init=epsg:27700")) 
-
-plot(spdf.tax) ## check with plot
-
-### create temporary raster to store number of records in each cell ###
-# this is used to make an 'effort' layer
-n_recs <- dec_crop
-
-# make a raster of zeroes for input
-n_recs[!is.na(n_recs)] <- 0
-# get the cell index for each point and make a table:
-counts = table(cellFromXY(n_recs,spdf.tax))
-# fill in the raster with the counts from the cell index:
-n_recs[as.numeric(names(counts))] <- counts
-
-plot(n_recs)
-
-
+rec_counts <- count_records(records_df = records, template_raster = dec_crop)
+plot(rec_counts)
 
 ```
+
+
 
