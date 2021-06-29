@@ -86,8 +86,8 @@ for(i in 1:length(names)){
 ```{r loc_dist}
 
 # location = c(-2.730696, 54.026759) # quernmore
-location = c(-2.860564, 56.014902) # aberlady
-# location = c(-1.110557, 51.602436) # wallingford
+# location = c(-2.860564, 56.014902) # aberlady
+location = c(-1.110557, 51.602436) # wallingford
 
 distance = 5000
 
@@ -252,10 +252,10 @@ eq <- (var)*(preds)
 sqvar <- sqrt(var) * (preds)
 sqpred <- (var) * sqrt(preds)
 
-dec_fls <- list(equal_weight = eq, 
+dec_fls <- list(variation = var,
+                equal_weight = eq, 
                 root_variation = sqvar, 
-                root_prediction = sqpred,
-                variation = var)
+                root_prediction = sqpred)
 
 par(mfrow = c(4,4))
 
@@ -277,6 +277,7 @@ for(r in 1:4){
 
 
 ```
+
 It's up to us which methods of creating scores we use. Based on these plots, I would say that the one that probably does 'what we want' the most is the 'root_variation, equal weighting' plot (i.e. I think it looks the best, for this region at least). This is because it downweights the importance of 'nice places' and upweights uncertainty. It also treats all species the same, which means that we aren't guessing as to which species are important in a region.
 
 
@@ -297,6 +298,11 @@ points(x = spdf$lon, y = spdf$lat, col = 'red', pch = 20, cex=0.5)
 
 ```
 
+```{r}
+?setdiff
+rm(list=setdiff(ls(), c("dec_fls", "preds", "var", "spdf")))
+
+```
 
 
 
