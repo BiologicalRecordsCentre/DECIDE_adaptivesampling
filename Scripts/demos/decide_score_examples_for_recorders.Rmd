@@ -1,0 +1,259 @@
+---
+title: "DECIDE score plots"
+author: "Thomas MM"
+date: "6/22/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = FALSE, warning = F, message = F)
+
+library(tidyverse)
+library(doParallel)
+library(foreach)
+library(raster)
+library(viridis)
+library(scales)
+library(ggmap)
+library(osmdata)
+
+source("../../Scripts/modules/filter_distance.R")
+
+```
+
+
+```{r species_data, warning=F, echo = F, message = F, include = F}
+
+# model = c('rf', 'lr', 'gam')
+taxa = 'moth'
+pseudoabs = 'PA_thinned_10000nAbs'
+
+
+model_locs <- paste0('/data-s3/thoval/sdm_outputs/', taxa, '/combined_model_outputs/', pseudoabs)
+
+names <- gsub(pattern = '_PA_thinned_10000nAbs_weightedmeanensemble.grd', replacement = '', 
+              list.files(model_locs, 
+                         pattern='_weightedmeanensemble.grd'))
+# names
+
+# sdm outputs for each species
+species_stack <- list()
+
+# error outputs
+error_out <- list()
+
+for(i in 1:length(names)){
+  
+  print(names[i])
+  
+  # initiate model list within for loop so that it gets replaced when starting a new species
+  # otherwise we might get some weird overlaps
+  
+  # mean predictions
+  mp <- list.files(model_locs, 
+                   pattern = paste0(names[i], "_", pseudoabs, "_weightedmeanensemble.grd"),
+                   full.names = TRUE)
+  
+  mod_preds <- raster::stack(mp)
+  names(mod_preds) <- paste0(names[i], '_mean_pred')
+  
+  
+  
+  # quantile range
+  qr <- list.files(model_locs, 
+                   pattern = paste0(names[i], "_", pseudoabs, "_rangeensemblequantiles.grd"),
+                   full.names = TRUE)
+  
+  qrnge <- raster::stack(qr)
+  names(qrnge) <- paste0(names[i], '_quantile_range')
+  
+  species_stack[[i]] <- raster::stack(mod_preds, qrnge)
+  
+}
+
+
+```
+
+
+```{r loc_dist}
+
+# location = c(-0.385843, 51.289680) # bookham common
+# location = c(-2.860564, 56.014902) # aberlady
+# location = c(-1.503560, 54.141389) # sharow
+# location = c(-2.247979, 50.632404) # lulworth cove
+# location = c(-1.461817, 54.440435) # great smeaton
+# location = c(-1.110557, 51.602436) # wallingford
+
+
+distance = 5000
+
+```
+
+
+```{r crop, warning = F, include = F}
+
+registerDoParallel(7)
+
+# out_cropped <- list()
+system.time(
+  out_cropped <- foreach(s = 1:length(species_stack)) %dopar% {
+    
+    print(s)
+    
+    sp <- species_stack[[s]]
+    
+    
+    # crop the prediction
+    crop_pred <- filter_distance(obj = subset(sp, grep(pattern = 'mean_pred',
+                                                       names(sp))),
+                                 method = 'buffer',
+                                 distance = distance,
+                                 location = location)
+    
+    # crop the error
+    crop_err <- filter_distance(obj = subset(sp, grep(pattern = 'quantile_range',
+                                                      names(sp))),
+                                method = 'buffer',
+                                distance = distance,
+                                location = location)
+    
+    if(length(names(crop_pred))>1){
+      # get the mean
+      m_pred_av <- calc(crop_pred,
+                        mean, na.rm = T)
+      names(m_pred_av) <- 'predictions'
+      
+      
+      m_quant_av <- calc(crop_err,
+                         mean, na.rm = T)
+      names(m_quant_av) <- 'error'
+    } else {
+      
+      m_pred_av <- crop_pred
+      m_quant_av <- crop_err
+      
+    }
+    
+    out_rasts <- list(m_pred_av, m_quant_av)
+    names(out_rasts) <- c('predictions', 'quantile_var')
+    
+    return(out_rasts)
+    
+  }
+)
+
+registerDoSEQ()
+
+names(out_cropped) <- names
+
+
+# get the cropped probability of presence
+preds <- stack(lapply(1:length(out_cropped), FUN = function(x) out_cropped[[x]]$predictions))
+names(preds) <- names(out_cropped)
+
+# get the cropped variation
+var <- stack(lapply(1:length(out_cropped), FUN = function(x) out_cropped[[x]]$quantile_var))
+names(var) <- names(out_cropped)
+
+
+```
+
+
+```{r, message = F, warning = F}
+
+register_google(key = "AIzaSyDzfFo6Jq1g65BauVhLL-SexOYS5OuH-kA")
+
+gmap <- get_map(location = location, zoom = 12)
+
+## original decide
+ogd <- projectRaster(raster::weighted.mean(sqrt(var) * (preds), preds), crs="+proj=longlat +datum=WGS84") %>% as.data.frame(xy=T)
+
+ogd_p <- ggmap(gmap) +
+  geom_tile(data = ogd, aes(x=x,y=y, fill = layer), alpha = 0.7) +
+  coord_quickmap() +
+  scale_fill_gradient(high = 'red', low = '#ffffcc', na.value = NA, name = 'DECIDE score') +
+  labs(x= '', y = '')
+
+
+## variation only
+vo <- projectRaster(mean(var), crs="+proj=longlat +datum=WGS84") %>% as.data.frame(xy=T)
+
+vo_p <- ggmap(gmap) +
+  geom_tile(data = vo, aes(x=x,y=y, fill = layer), alpha = 0.7) +
+  coord_quickmap() +
+  scale_fill_gradient(high = 'red', low = '#ffffcc', na.value = NA, name = 'DECIDE score') +
+  labs(x= '', y = '')
+
+
+## equal weighting
+eq <- mean((var)*(preds))
+
+# project raster to lat long for use with ggmap
+eqp <- projectRaster(eq, crs="+proj=longlat +datum=WGS84") %>% as.data.frame(xy=T)
+
+eqp_p <- ggmap(gmap) +
+  geom_tile(data = eqp, aes(x=x,y=y, fill = layer), alpha = 0.7) +
+  coord_quickmap() +
+  scale_fill_gradient(high = 'red', low = '#ffffcc', na.value = NA, name = 'DECIDE score') +
+  labs(x= '', y = '')
+
+
+## variation upweighted
+vp <- projectRaster(mean(sqrt(var)*(preds)), crs="+proj=longlat +datum=WGS84") %>% as.data.frame(xy=T)
+
+vp_p <- ggmap(gmap) +
+  geom_tile(data = vp, aes(x=x,y=y, fill = layer), alpha = 0.7) +
+  coord_quickmap() +
+  scale_fill_gradient(high = 'red', low = '#ffffcc', na.value = NA, name = 'DECIDE score') +
+  labs(x= '', y = '')
+
+
+## Cells with the highest decide scores
+q90 <- projectRaster(calc(var, fun=function(x) quantile(x, .9, na.rm=TRUE)), 
+                    crs="+proj=longlat +datum=WGS84") %>% as.data.frame(xy=T)
+
+q90_p <- ggmap(gmap) +
+  geom_tile(data = q90, aes(x=x,y=y, fill = layer), alpha = 0.7) +
+  coord_quickmap() +
+  scale_fill_gradient(high = 'red', low = '#ffffcc', na.value = NA, name = 'DECIDE score') +
+  labs(x= '', y = '')
+
+
+
+
+```
+
+
+Below are three different ways of calculating the DECIDE score. The first plot is the average uncertainty of all species in a grid cell; meaning that all species are weighted equally to get the final value. The second plot is also based on uncertainty only, but only takes into account the most uncertain species when calculating the final value. Finally, the third plot calculates the DECIDE score by accounting for uncertainty and the probability of presence.
+
+
+```{r plots, fig.width=8}
+
+
+# p1 <- ogd_p + ggtitle('Original DECIDE score')
+p2 <- vo_p  + ggtitle('Average uncertainty')
+p3 <- eqp_p + ggtitle('Presence and uncertainty equally weighted')
+# p4 <- vp_p  + ggtitle('Upweighted uncertainty with presence')
+p5 <- q90_p + ggtitle('Highest uncertainty')
+
+# p1
+p2 
+p5
+p3
+# p4
+
+```
+
+
+```{r}
+# 
+# spdf <- read.csv('../../Data/species_data/moth/DayFlyingMoths_East_Norths.csv')
+# 
+# p2 + geom_point(data = spdf, aes(x=lon,y=lat), colour = 'black', size = 0.8, pch = 20)
+
+```
+
+
+
+

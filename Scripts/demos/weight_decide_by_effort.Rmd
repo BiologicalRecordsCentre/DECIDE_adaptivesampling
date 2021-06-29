@@ -1,0 +1,274 @@
+---
+title: "testing effort layer weighting"
+author: "Thomas MM"
+date: "6/22/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = FALSE, warning = F, message = F)
+
+library(tidyverse)
+library(doParallel)
+library(foreach)
+library(raster)
+library(viridis)
+
+source("../../Scripts/modules/filter_distance.R")
+
+# read in records data
+dfm <- read_csv("../../Data/species_data/moth/DayFlyingMoths_EastNorths_no_duplicates.csv")
+dfm
+
+
+```
+
+## get up to date species data 
+
+```{r species_data, warning=F, echo = F, message = F, include = F}
+
+# model = c('rf', 'lr', 'gam')
+taxa = 'moth'
+pseudoabs = 'PA_thinned_10000nAbs'
+
+
+model_locs <- paste0('/data-s3/thoval/sdm_outputs/', taxa, '/combined_model_outputs/', pseudoabs)
+
+names <- gsub(pattern = '_PA_thinned_10000nAbs_weightedmeanensemble.grd', replacement = '', 
+              list.files(model_locs, 
+                         pattern='_weightedmeanensemble.grd'))
+# names
+
+# sdm outputs for each species
+species_stack <- list()
+
+# error outputs
+error_out <- list()
+
+for(i in 1:length(names)){
+  
+  print(names[i])
+  
+  # initiate model list within for loop so that it gets replaced when starting a new species
+  # otherwise we might get some weird overlaps
+  
+  # mean predictions
+  mp <- list.files(model_locs, 
+                   pattern = paste0(names[i], "_", pseudoabs, "_weightedmeanensemble.grd"),
+                   full.names = TRUE)
+  
+  mod_preds <- raster::stack(mp)
+  names(mod_preds) <- paste0(names[i], '_mean_pred')
+  
+  
+  
+  # quantile range
+  qr <- list.files(model_locs, 
+                   pattern = paste0(names[i], "_", pseudoabs, "_rangeensemblequantiles.grd"),
+                   full.names = TRUE)
+  
+  qrnge <- raster::stack(qr)
+  names(qrnge) <- paste0(names[i], '_quantile_range')
+  
+  species_stack[[i]] <- raster::stack(mod_preds, qrnge)
+  
+}
+
+
+```
+
+## location to crop to for all cropping
+
+```{r loc_dist}
+
+# location = c(-0.385843, 51.289680) # bookham common
+# location = c(-2.860564, 56.014902) # aberlady
+# location = c(-1.503560, 54.141389) # sharow
+# location = c(-2.247979, 50.632404) # lulworth cove
+# location = c(-1.461817, 54.440435) # great smeaton
+location = c(-1.110557, 51.602436) # wallingford
+
+
+distance = 5000
+
+```
+
+## Crop prediction and variation to desired location 
+
+```{r crop, warning = F, include = F}
+
+registerDoParallel(7)
+
+# out_cropped <- list()
+system.time(
+  out_cropped <- foreach(s = 1:length(species_stack)) %dopar% {
+    
+    print(s)
+    
+    sp <- species_stack[[s]]
+    
+    
+    # crop the prediction
+    crop_pred <- filter_distance(obj = subset(sp, grep(pattern = 'mean_pred',
+                                                       names(sp))),
+                                 method = 'buffer',
+                                 distance = distance,
+                                 location = location)
+    
+    # crop the error
+    crop_err <- filter_distance(obj = subset(sp, grep(pattern = 'quantile_range',
+                                                      names(sp))),
+                                method = 'buffer',
+                                distance = distance,
+                                location = location)
+    
+    if(length(names(crop_pred))>1){
+      # get the mean
+      m_pred_av <- calc(crop_pred,
+                        mean, na.rm = T)
+      names(m_pred_av) <- 'predictions'
+      
+      
+      m_quant_av <- calc(crop_err,
+                         mean, na.rm = T)
+      names(m_quant_av) <- 'error'
+    } else {
+      
+      m_pred_av <- crop_pred
+      m_quant_av <- crop_err
+      
+    }
+    
+    out_rasts <- list(m_pred_av, m_quant_av)
+    names(out_rasts) <- c('predictions', 'quantile_var')
+    
+    return(out_rasts)
+    
+  }
+)
+
+registerDoSEQ()
+
+names(out_cropped) <- names
+
+
+# get the cropped probability of presence
+preds <- stack(lapply(1:length(out_cropped), FUN = function(x) out_cropped[[x]]$predictions))
+names(preds) <- names(out_cropped)
+
+# get the cropped variation
+var <- stack(lapply(1:length(out_cropped), FUN = function(x) out_cropped[[x]]$quantile_var))
+names(var) <- names(out_cropped)
+
+
+```
+
+Going to use mean variation across all species for the decide score layer
+
+```{r}
+
+dec_crop <- mean(var)
+plot(dec_crop)
+
+```
+
+
+## crop species data frame to region of interest
+
+This will be 
+
+```{r}
+
+dfm <- dfm %>% 
+  dplyr::select(lon, lat, date, yr, sp_n, com_n)
+head(dfm)
+
+# convert records to an sf object
+st_dfm <- st_as_sf(dfm, coords = c('lon', 'lat'), crs = 27700)
+
+# get count of all records as a raster
+# crop
+records <- filter_distance(st_dfm,
+                           distance = 5000)
+
+plot(dec_crop)
+points(x = dfm$lon, y = dfm$lat, col = 'red')
+plot(st_geometry(records), add = T, pch = 20)
+
+
+
+```
+
+```{r}
+
+####    Function
+# not sure if this will work with raster and sf object with different resolutions
+count_records <- function(records_df, # sf object of record counts
+                          template_raster) # raster that you want the counts to be aggregated by
+{
+  
+  # Get the counts of records per cell and store as data frame
+  record_counts <- records_df %>% 
+    mutate(lon = unlist(map(records_df$geometry, 1)),
+           lat = unlist(map(records_df$geometry, 2))) %>% 
+    group_by(lon, lat) %>% 
+    tally %>% as.data.frame() %>% 
+    mutate(geometry = NULL)
+  
+  # convert to a spatial points data frame to match with raster
+  xy <- record_counts[,c("lon","lat")]
+  spdf.counts <- SpatialPointsDataFrame(coords = xy, data = record_counts,
+                                        proj4string = CRS("+init=epsg:27700")) 
+  
+  ### create counts raster to store number of records in each cell ###
+  # this is used to make an 'effort' layer
+  n_recs <- template_raster
+  
+  # make a raster of zeroes for input
+  n_recs[!is.na(n_recs)] <- 0
+  # get the cell index for each point and make a table:
+  counts = table(cellFromXY(n_recs,spdf.tax))
+  # fill in the raster with the counts from the cell index:
+  n_recs[as.numeric(names(counts))] <- counts
+  
+  return(n_recs)
+  
+}
+
+count_records(records_df = records, template_raster = dec_crop)
+
+#### function does what is below
+
+# store counts as a data.frame
+rec_count <- records %>% 
+  mutate(lon = unlist(map(records$geometry, 1)),
+         lat = unlist(map(records$geometry, 2))) %>% 
+  group_by(lon, lat) %>% 
+  tally %>% as.data.frame() %>% 
+  mutate(geometry = NULL)
+rec_count
+
+xy <- rec_count[,c("lon","lat")]
+spdf.tax <- SpatialPointsDataFrame(coords = xy, data = rec_count,
+                                   proj4string = CRS("+init=epsg:27700")) 
+
+plot(spdf.tax) ## check with plot
+
+### create temporary raster to store number of records in each cell ###
+# this is used to make an 'effort' layer
+n_recs <- dec_crop
+
+# make a raster of zeroes for input
+n_recs[!is.na(n_recs)] <- 0
+# get the cell index for each point and make a table:
+counts = table(cellFromXY(n_recs,spdf.tax))
+# fill in the raster with the counts from the cell index:
+n_recs[as.numeric(names(counts))] <- counts
+
+plot(n_recs)
+
+
+
+```
+
