@@ -205,21 +205,34 @@ plot(st_geometry(records), add = T, pch = 20)
 
 ## function to count the number of records that falls in each cell of the raster
 
-This might not work if the data and the raster are at different resolutions. Very slow on large rasters. Might be possible to do this in package sf rather than relying on raster. Only possible if the coords of the data frame and raster are the same.
-
-We need a way of downweighting cells that have lots of sightings in them. I have generated this below for weight_by_time = FALSE.
+We need a way of downweighting cells that have lots of sightings in them. With weight_by_time = FALSE in the function below, it returns a layer of the number of records in each grid cell, irrespective of the year in which those records were made.
 
 But we also want to downweight cells that have recent records in them. 
+
+Below are a series of steps that I have taken to try and weight by timings:
+
+### first
 
 I have done it so that all the unique years in the records dataframe are ranked oldest to newest, and used this rank to divide the number of records in a cell. Meaning that the oldest records in a cell will be divided by 1; the newest by the number of unique records. 
 
 The problem is: If we consider two cells that were recorded in the oldest year, e.g. 2010, they are both divided by 1. But if one cell has 2 records and the other 10, then the one with more records will be upweighted relative to the one with fewer records. So, what do we do?
 
-Other option is take the number of records in a cell and the number of years that have passed since those records were made. Divide the number of years since the last record by the number of records and use that as a score... 
+### second
 
-Other option is to take the number of years since the most recent record and divide it by the number of records in that year. This means that grid cells with few records from a long time ago would be the most upweighted. Grid cells visited recently with most records would be the most downweighted. The problem is that this treats records in the same way as the number of years since the last record and means that, for e.g., that 1 record in 2013 [(2021-2013)/1=8] has a higher weighting than 5 records in 2011 [(2021-2011)/5=2]. Which we don't want. 
+Other option is take the number of records in a cell and the number of years that have passed since those records were made. Divide the number of years since the last record by the number of records and use that as a score. The problem with this is that the records across all years are considered important in the 'score' given to a cell; whereas, we are probably most interested in only the most recent records. I.e. we don't care that a cell had 1 record in 2011 if it had 10 in 2019.
 
-So, we probably want time since last record irrespective of number of visits. So, just time since the last record as the way of weighting 
+### third 
+
+Other option is to take the number of years since the most recent record and divide it by the number of records in that year. This means that grid cells with few records from a long time ago would be the most upweighted. Grid cells visited recently with most records would be the most downweighted. The problem is that this treats records in the same way as the number of years since the last record and means that, for e.g., 1 record in 2013 [(2021-2013)/1=8] has a higher weighting than 5 records in 2011 [(2021-2011)/5=2]. Which we don't want. 
+
+### fourth and final
+
+So, we probably want time since the last record, irrespective of the number of visits. So, just time since the last record as the way of creating a weighting to affect the decide score.
+
+This function can now produce two outputs. The first is just the number of records in a cell across all years. The second, is the number of years since the most recent record.
+
+This might not work if the data and the raster are at different resolutions. Slow on large rasters. Might be possible to do this in package sf rather than relying on raster. Only possible if the coords of the data frame and raster are the same.
+
 
 ```{r}
 
@@ -240,24 +253,16 @@ count_records <- function(records_df, # sf object of record counts
   
   if(weight_by_time){
     
-    # get the years ranked    
-    yr_rnk <- data.frame(yr = unique(record_counts$year), rnk = rank(unique(record_counts$year)))
-    
-    # bind to records data.frame
-    record_counts$rnk <- yr_rnk$rnk[match(record_counts$year, yr_rnk$yr)]
+    # # get the years ranked    
+    # yr_rnk <- data.frame(yr = unique(record_counts$year), rnk = rank(unique(record_counts$year)))
+    # 
+    # # bind to records data.frame
+    # record_counts$rnk <- yr_rnk$rnk[match(record_counts$year, yr_rnk$yr)]
     
     record_weights <- record_counts %>% 
-      group_by(lon, lat, year) %>% 
-      dplyr::summarise(n = length(year[year == max(year)]), # number of records in the grid cell in the most recent year
-                       lst_rec = max(year), # what is the most recent year?
-                       yrs_since_last_rec = year(Sys.Date())-lst_rec, # number of years since the last record
-                       score = yrs_since_last_rec/n) %>% # number of years since the last record / the number of records in that year. 
-    # dplyr::summarise(n = n(),
-    #                  yrs_since_pres = year(Sys.Date())-year,
-    #                  score = yrs_since_pres/n) %>% #/rnk) %>% 
-    distinct() %>% 
       group_by(lon, lat) %>% 
-      summarise(score = sum(score)) %>% 
+      dplyr::summarise(lst_rec = max(year), # what is the most recent year?
+                       score = year(Sys.Date())-lst_rec) %>%  # number of years since the last record in a grid cell
       ungroup()
     
     
@@ -277,7 +282,7 @@ count_records <- function(records_df, # sf object of record counts
     cells  <- (cellFromXY(n_recs,spdf.recs_weight))
     
     # fill those cells with the score, have done some tests and 98% sure they are in the same order but ideally would need a match statement here
-    n_recs[cells] <- spdf.recs$score
+    n_recs[cells] <- spdf.recs_weight$score
     
   } else if(!weight_by_time){
     
@@ -305,25 +310,6 @@ count_records <- function(records_df, # sf object of record counts
   
 }
 
-record_counts %>% 
-  group_by(lon, lat) %>% 
-  dplyr::summarise(n = length(year)[year == max(year)],
-                   lst_rec = max(year),
-                   yrs_since_last_rec = year(Sys.Date())-lst_rec,
-                   score = yrs_since_last_rec/n) %>% #/rnk) %>% 
-  distinct()
-
-t <- record_counts[record_counts$lon == 345750 & record_counts$lat == 680450, ]
-t
-
-max(t$year)
-length(t$year[t$year == max(t$year)])
-
-t %>% 
-  dplyr::summarise(n = length(year[year == max(year)]),
-                   lst_rec = max(year),
-                   yrs_since_last_rec = year(Sys.Date())-lst_rec,
-                   score = yrs_since_last_rec/n) 
 
 ```
 
@@ -331,7 +317,9 @@ output of function - a raster with number of counts per cell
 
 ```{r}
 
-rec_counts <- count_records(records_df = records, template_raster = dec_crop)
+rec_counts <- count_records(records_df = records, 
+                            template_raster = dec_crop,
+                            weight_by_time = TRUE)
 plot(rec_counts)
 
 ```
@@ -362,6 +350,7 @@ smooth_recording <- function(weighted_layer, # layer to be weighted
   # set minimum value to original layer
   M <- minValue(weighted_layer)
   
+  # for now, just multiplying the weighted_layer by the weighting
   adjusted_score <- weighted_layer * weighting
   adjusted_score[adjusted_score < M] <- M # change the lowest records to be equal to the original decide score minimum
   
@@ -374,14 +363,15 @@ smooth_recording <- function(weighted_layer, # layer to be weighted
 
 ```
 
-```{r}
+```{r, fig.width=10}
 
 sr <- smooth_recording(weighted_layer = dec_crop,
                        effort_raster = rec_counts,
                        recording_impact = 10)
 
-par(mfrow = c(1,2))
+par(mfrow = c(1,3))
 plot(dec_crop, main = 'Raw variation')
+plot(rec_counts, main = 'records weighted by time')
 plot(sr$weighted_score, main = 'Downweighted by records')
 par(mfrow = c(1,1))
 
