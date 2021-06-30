@@ -207,6 +207,18 @@ plot(st_geometry(records), add = T, pch = 20)
 
 This might not work if the data and the raster are at different resolutions. Very slow on large rasters. Might be possible to do this in package sf rather than relying on raster. Only possible if the coords of the data frame and raster are the same.
 
+We need a way of downweighting cells that have lots of sightings in them. I have generated this below for weight_by_time = FALSE.
+
+But we also want to downweight cells that have recent records in them. 
+
+I have done it so that all the unique years in the records dataframe are ranked oldest to newest, and used this rank to divide the number of records in a cell. Meaning that the oldest records in a cell will be divided by 1; the newest by the number of unique records. 
+
+The problem is: If we consider two cells that were recorded in the oldest year, e.g. 2010, they are both divided by 1. But if one cell has 2 records and the other 10, then the one with more records will be upweighted relative to the one with fewer records. So, what do we do?
+
+Other option is take the number of records in a cell and the number of years that have passed since those records were made. Divide the number of years since the last record by the number of records and use that as a score... 
+
+Really, what we want is the most recent time a record was made in a grid cell
+
 ```{r}
 
 ####    Function
@@ -235,8 +247,8 @@ count_records <- function(records_df, # sf object of record counts
     record_weights <- record_counts %>% 
       group_by(lon, lat, year) %>% 
       dplyr::summarise(n = n(),
-                       # yrs_since_pres = year(Sys.Date())-year,
-                       score = n/rnk) %>% 
+                       yrs_since_pres = year(Sys.Date())-year,
+                       score = yrs_since_pres/n) %>% #/rnk) %>% 
       distinct() %>% 
       group_by(lon, lat) %>% 
       summarise(score = sum(score)) %>% 
@@ -287,17 +299,6 @@ count_records <- function(records_df, # sf object of record counts
   
 }
 
-
-    record_counts %>% 
-      group_by(lon, lat, year) %>% 
-      dplyr::summarise(n = n(),
-                       yrs_since_pres = year(Sys.Date())-year,
-                       score = n/yrs_since_pres) %>% 
-      mutate(yr_rank = yr_rnk$rnk[match(year, yr_rnk$yr)])
-      distinct() %>% 
-      group_by(lon, lat) %>% 
-      summarise(score = sum(score)) %>% 
-      ungroup()
 
 
 ```
