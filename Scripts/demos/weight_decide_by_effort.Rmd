@@ -14,6 +14,7 @@ library(doParallel)
 library(foreach)
 library(raster)
 library(viridis)
+library(lubridate)
 
 source("../../Scripts/modules/filter_distance.R")
 
@@ -83,11 +84,11 @@ for(i in 1:length(names)){
 ```{r loc_dist}
 
 # location = c(-0.385843, 51.289680) # bookham common
-# location = c(-2.860564, 56.014902) # aberlady
+location = c(-2.860564, 56.014902) # aberlady
 # location = c(-1.503560, 54.141389) # sharow
 # location = c(-2.247979, 50.632404) # lulworth cove
 # location = c(-1.461817, 54.440435) # great smeaton
-location = c(-1.110557, 51.602436) # wallingford
+# location = c(-1.110557, 51.602436) # wallingford
 
 
 distance = 5000
@@ -181,7 +182,7 @@ This will be
 ```{r}
 
 dfm <- dfm %>% 
-  dplyr::select(lon, lat, date, yr, sp_n, com_n)
+  dplyr::select(lon, lat, date, year = yr, species = sp_n, common_name=com_n)
 head(dfm)
 
 # convert records to an sf object
@@ -201,16 +202,19 @@ plot(st_geometry(records), add = T, pch = 20)
 
 
 ```
+
 ## function to count the number of records that falls in each cell of the raster
 
-This might not work if the data and the raster are at different resolutions. Very slow on large rasters. Might be possible to do this in package sf rather than relying on raster 
+This might not work if the data and the raster are at different resolutions. Very slow on large rasters. Might be possible to do this in package sf rather than relying on raster. Only possible if the coords of the data frame and raster are the same.
 
 ```{r}
 
 ####    Function
 # not sure if this will work with raster and sf object with different resolutions
 count_records <- function(records_df, # sf object of record counts
-                          template_raster) # raster that you want the counts to be aggregated by
+                          template_raster, # raster that you want the counts to be aggregated by
+                          Coords = 27700, 
+                          weight_by_time = TRUE)
 {
   
   # Get the counts of records per cell and store as data frame
@@ -220,27 +224,81 @@ count_records <- function(records_df, # sf object of record counts
     as.data.frame() %>% 
     mutate(geometry = NULL)
   
-  # convert to a spatial points data frame to match with raster
-  xy <- record_counts[,c("lon","lat")]
-  spdf.recs <- SpatialPointsDataFrame(coords = xy, data = record_counts,
-                                      proj4string = CRS("+init=epsg:27700")) 
-  
-  ### create counts raster to store number of records in each cell ###
-  # this is used to make an 'effort' layer
-  n_recs <- template_raster
-  
-  # make a raster of zeroes for input
-  n_recs[!is.na(n_recs)] <- 0
-  
-  # get the cell index for each point and make a table:
-  counts = table(cellFromXY(n_recs,spdf.recs))
-  
-  # fill in the raster with the counts from the cell index:
-  n_recs[as.numeric(names(counts))] <- counts
+  if(weight_by_time){
+    
+    # get the years ranked    
+    yr_rnk <- data.frame(yr = unique(record_counts$year), rnk = rank(unique(record_counts$year)))
+    
+    # bind to records data.frame
+    record_counts$rnk <- yr_rnk$rnk[match(record_counts$year, yr_rnk$yr)]
+    
+    record_weights <- record_counts %>% 
+      group_by(lon, lat, year) %>% 
+      dplyr::summarise(n = n(),
+                       # yrs_since_pres = year(Sys.Date())-year,
+                       score = n/rnk) %>% 
+      distinct() %>% 
+      group_by(lon, lat) %>% 
+      summarise(score = sum(score)) %>% 
+      ungroup()
+    
+    
+    # convert to a spatial points data frame to match with raster
+    xy <- record_weights[,c("lon","lat")]
+    spdf.recs_weight <- SpatialPointsDataFrame(coords = xy, data = record_weights,
+                                        proj4string = CRS(paste0("+init=epsg:", Coords))) 
+    
+    ### create counts raster to store number of records in each cell ###
+    # this is used to make an 'effort' layer
+    n_recs <- template_raster
+    
+    # make a raster of zeroes for input
+    n_recs[!is.na(n_recs)] <- 0
+    
+    # get cell numbers for the spdf.recs data frame
+    cells  <- (cellFromXY(n_recs,spdf.recs_weight))
+    
+    # fill those cells with the score, have done some tests and 98% sure they are in the same order but ideally would need a match statement here
+    n_recs[cells] <- spdf.recs$score
+    
+  } else if(!weight_by_time){
+    
+    # convert to a spatial points data frame to match with raster
+    xy <- record_counts[,c("lon","lat")]
+    spdf.recs <- SpatialPointsDataFrame(coords = xy, data = record_counts,
+                                        proj4string = CRS(paste0("+init=epsg:", Coords))) 
+    
+    ### create counts raster to store number of records in each cell ###
+    # this is used to make an 'effort' layer
+    n_recs <- template_raster
+    
+    # make a raster of zeroes for input
+    n_recs[!is.na(n_recs)] <- 0
+    
+    # get the cell index for each point and make a table:
+    counts  <- table(cellFromXY(n_recs,spdf.recs))
+    
+    # fill in the raster with the counts from the cell index:
+    n_recs[as.numeric(names(counts))] <- counts
+    
+  } else {stop('Weight by time mst be TRUE/FALSE')}
   
   return(n_recs)
   
 }
+
+
+    record_counts %>% 
+      group_by(lon, lat, year) %>% 
+      dplyr::summarise(n = n(),
+                       yrs_since_pres = year(Sys.Date())-year,
+                       score = n/yrs_since_pres) %>% 
+      mutate(yr_rank = yr_rnk$rnk[match(year, yr_rnk$yr)])
+      distinct() %>% 
+      group_by(lon, lat) %>% 
+      summarise(score = sum(score)) %>% 
+      ungroup()
+
 
 ```
 
@@ -286,7 +344,7 @@ smooth_recording <- function(weighted_layer, # layer to be weighted
   
   return(list(smoothed_effort = smoothed_effort,
               weighted_score = adjusted_score))
-         
+  
 }
 
 ```
@@ -295,18 +353,19 @@ smooth_recording <- function(weighted_layer, # layer to be weighted
 
 sr <- smooth_recording(weighted_layer = dec_crop,
                        effort_raster = rec_counts,
-                       recording_impact = 1)
-plot(sr$weighted_score)
+                       recording_impact = 10)
+
+par(mfrow = c(1,2))
+plot(dec_crop, main = 'Raw variation')
+plot(sr$weighted_score, main = 'Downweighted by records')
+par(mfrow = c(1,1))
 
 ```
-create weighting
+
+
 
 ```{r}
 
-# 1-(weighting/weighting^recording_impact) # this used to be 1/() but this has the opposite effect as intended if the weighting is between 0-1
-# this will be wrong if the weighting > 10
-
-effort_raster*(1-recording_impact)
 
 
 ```
