@@ -7,7 +7,7 @@ output: html_document
 
 ```{r setup, include=FALSE}
 
-knitr::opts_chunk$set(echo = FALSE, warning = F, message = F)
+knitr::opts_chunk$set(echo = TRUE, warning = F, message = F)
 
 library(tidyverse)
 library(doParallel)
@@ -177,7 +177,6 @@ plot(dec_crop)
 
 ## crop species data frame to region of interest
 
-This will be 
 
 ```{r}
 
@@ -227,9 +226,9 @@ Other option is to take the number of years since the most recent record and div
 
 ### fourth and final
 
-So, we probably want time since the last record, irrespective of the number of visits. So, just time since the last record as the way of creating a weighting to affect the decide score.
+So, we probably want time since the last record, irrespective of the number of visits. So, just time since the last record as the way of creating a weighting to affect the decide score. I have done 1/(number of years since last record), so that small numbers are places to go (i.e. with few records) and large numbers are places to avoid (i.e. lots of records/most recent records). This is so that the output of the 'weighted by time' option in the function, is consistent with outputting just a count of the number of records.
 
-This function can now produce two outputs. The first is just the number of records in a cell across all years. The second, is the number of years since the most recent record.
+This function can now produce two outputs. The first is just the number of records in a cell across all years. The second, is 1 divided by the number of years since the most recent record. In both cases, larger numbers are bad (i.e. most/most recent records) and smaller numbers are better (i.e. fewest/oldest records).
 
 This might not work if the data and the raster are at different resolutions. Slow on large rasters. Might be possible to do this in package sf rather than relying on raster. Only possible if the coords of the data frame and raster are the same.
 
@@ -261,10 +260,10 @@ count_records <- function(records_df, # sf object of record counts
     
     record_weights <- record_counts %>% 
       group_by(lon, lat) %>% 
-      dplyr::summarise(lst_rec = max(year), # what is the most recent year?
-                       score = year(Sys.Date())-lst_rec) %>%  # number of years since the last record in a grid cell
+      dplyr::summarise(last_rec = max(year), # what is the most recent year?
+                       yrs_since_last_rec = (year(Sys.Date())-last_rec), # number of years since the last record in a grid cell
+                       score = 1/yrs_since_last_rec) %>% # get the big values small and vice-versa, so that larger numbers are 'bad' and smaller numbers are 'good', so that it matches the number of records layer that's also outputted by this function
       ungroup()
-    
     
     # convert to a spatial points data frame to match with raster
     xy <- record_weights[,c("lon","lat")]
@@ -311,20 +310,36 @@ count_records <- function(records_df, # sf object of record counts
 }
 
 
+
 ```
 
-output of function - a raster with number of counts per cell
 
-```{r}
+In both plots, larger numbers are bad (i.e. most/most recent records) and smaller numbers are better (i.e. fewest/oldest records). I have shown how both methods work in the rest of the workflow (i.e. two sets of plots for the next functions). 'Number of records' refers to weighting by the raw numbers; 'time since records' refers to weighting by the time since the most recent records.
+
+
+```{r, fig.width=10}
 
 rec_counts <- count_records(records_df = records, 
                             template_raster = dec_crop,
-                            weight_by_time = TRUE)
-plot(rec_counts)
+                            weight_by_time = FALSE)
+
+rec_counts_time <- count_records(records_df = records, 
+                                 template_raster = dec_crop,
+                                 weight_by_time = TRUE)
+par(mfrow = c(1,2))
+plot(rec_counts, main = 'number of records')
+plot(rec_counts_time, main = 'time since records')
+par(mfrow = c(1,1))
 
 ```
 
 ## function to create a smoothed recording layer
+
+The function below uses a moving window to sum all the records within a 5x5 matrix to create a 'smoothed' effort layer. It then does:
+
+$1/(1+(SmoothedEffort*RecordingImpact))$
+
+Where recording impact is a way to inflate or reduce the effect of the effort layer. The "1+" is because lots of values were between 0-1 which caused problems when dividing the 1 by the number. This means that high numbers of $(SmoothedEffort*RecordingImpact)$ ends up in a very low weighting score for a grid cell. The raster generated is then simply multiplied by the mean of the raw variation across all species to produce a DECIDE score which has been downweighted by records.
 
 ```{r}
 
@@ -341,11 +356,12 @@ smooth_recording <- function(weighted_layer, # layer to be weighted
                                         rep(0.1, 5)), 
                                       nrow = 5, ncol = 5),
                            pad = TRUE,
-                           padValue = 0)
+                           padValue = 0,
+                           NAonly=T)
   
   # Convert recording to weighting
   weighting <- smoothed_effort
-  weighting <- 1/(1+(weighting/recording_impact))
+  weighting <- 1/(1+(weighting*recording_impact)) # Outputs a layer of 1s where there are no records and progressively goes to 0 where there are more records
   
   # set minimum value to original layer
   M <- minValue(weighted_layer)
@@ -356,35 +372,36 @@ smooth_recording <- function(weighted_layer, # layer to be weighted
   
   
   
-  return(list(smoothed_effort = smoothed_effort,
+  return(list(weighting_layer = weighting,
               weighted_score = adjusted_score))
   
 }
 
+
 ```
+
 
 ```{r, fig.width=10}
 
 sr <- smooth_recording(weighted_layer = dec_crop,
                        effort_raster = rec_counts,
-                       recording_impact = 10)
+                       recording_impact = 5)
 
-par(mfrow = c(1,3))
-plot(dec_crop, main = 'Raw variation')
-plot(rec_counts, main = 'records weighted by time')
+sr_time <- smooth_recording(weighted_layer = dec_crop,
+                            effort_raster = rec_counts_time,
+                            recording_impact = 5)
+
+par(mfrow = c(2,3))
+plot(dec_crop, main = 'Raw DECIDE variation')
+plot(sr$weighting_layer, main = 'weight layer, number of records')
 plot(sr$weighted_score, main = 'Downweighted by records')
+
+plot(dec_crop, main = 'Raw DECIDE variation')
+plot(sr_time$weighting_layer, main = 'weight layer, 1/(number of years since last record)')
+plot(sr_time$weighted_score, main = 'Downweighted by timing of records')
 par(mfrow = c(1,1))
 
 ```
-
-
-
-```{r}
-
-
-
-```
-
 
 
 
