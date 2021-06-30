@@ -217,7 +217,9 @@ The problem is: If we consider two cells that were recorded in the oldest year, 
 
 Other option is take the number of records in a cell and the number of years that have passed since those records were made. Divide the number of years since the last record by the number of records and use that as a score... 
 
-Really, what we want is the most recent time a record was made in a grid cell
+Other option is to take the number of years since the most recent record and divide it by the number of records in that year. This means that grid cells with few records from a long time ago would be the most upweighted. Grid cells visited recently with most records would be the most downweighted. The problem is that this treats records in the same way as the number of years since the last record and means that, for e.g., that 1 record in 2013 [(2021-2013)/1=8] has a higher weighting than 5 records in 2011 [(2021-2011)/5=2]. Which we don't want. 
+
+So, we probably want time since last record irrespective of number of visits. So, just time since the last record as the way of weighting 
 
 ```{r}
 
@@ -246,10 +248,14 @@ count_records <- function(records_df, # sf object of record counts
     
     record_weights <- record_counts %>% 
       group_by(lon, lat, year) %>% 
-      dplyr::summarise(n = n(),
-                       yrs_since_pres = year(Sys.Date())-year,
-                       score = yrs_since_pres/n) %>% #/rnk) %>% 
-      distinct() %>% 
+      dplyr::summarise(n = length(year[year == max(year)]), # number of records in the grid cell in the most recent year
+                       lst_rec = max(year), # what is the most recent year?
+                       yrs_since_last_rec = year(Sys.Date())-lst_rec, # number of years since the last record
+                       score = yrs_since_last_rec/n) %>% # number of years since the last record / the number of records in that year. 
+    # dplyr::summarise(n = n(),
+    #                  yrs_since_pres = year(Sys.Date())-year,
+    #                  score = yrs_since_pres/n) %>% #/rnk) %>% 
+    distinct() %>% 
       group_by(lon, lat) %>% 
       summarise(score = sum(score)) %>% 
       ungroup()
@@ -258,7 +264,7 @@ count_records <- function(records_df, # sf object of record counts
     # convert to a spatial points data frame to match with raster
     xy <- record_weights[,c("lon","lat")]
     spdf.recs_weight <- SpatialPointsDataFrame(coords = xy, data = record_weights,
-                                        proj4string = CRS(paste0("+init=epsg:", Coords))) 
+                                               proj4string = CRS(paste0("+init=epsg:", Coords))) 
     
     ### create counts raster to store number of records in each cell ###
     # this is used to make an 'effort' layer
@@ -299,7 +305,25 @@ count_records <- function(records_df, # sf object of record counts
   
 }
 
+record_counts %>% 
+  group_by(lon, lat) %>% 
+  dplyr::summarise(n = length(year)[year == max(year)],
+                   lst_rec = max(year),
+                   yrs_since_last_rec = year(Sys.Date())-lst_rec,
+                   score = yrs_since_last_rec/n) %>% #/rnk) %>% 
+  distinct()
 
+t <- record_counts[record_counts$lon == 345750 & record_counts$lat == 680450, ]
+t
+
+max(t$year)
+length(t$year[t$year == max(t$year)])
+
+t %>% 
+  dplyr::summarise(n = length(year[year == max(year)]),
+                   lst_rec = max(year),
+                   yrs_since_last_rec = year(Sys.Date())-lst_rec,
+                   score = yrs_since_last_rec/n) 
 
 ```
 
