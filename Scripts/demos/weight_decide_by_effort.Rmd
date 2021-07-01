@@ -15,22 +15,29 @@ library(foreach)
 library(raster)
 library(viridis)
 library(lubridate)
+library(data.table)
 
 source("../../Scripts/modules/filter_distance.R")
 
+```
+
+```{r}
+
 # read in records data
 dfm <- read_csv("../../Data/species_data/moth/DayFlyingMoths_EastNorths_no_duplicates.csv")
-dfm
-
+# dfm <- read_csv("../../Data/species_data/butterfly/butterfly_EastNorths_no_duplicates.csv")
+dfm_full <- fread("../../Data/species_data/butterfly/butterfly_EastNorths_no_duplicates.csv")
+head(dfm_full)
 
 ```
+
 
 ## get up to date species data 
 
 ```{r species_data, warning=F, echo = F, message = F, include = F}
 
 # model = c('rf', 'lr', 'gam')
-taxa = 'moth'
+taxa = 'butterfly'
 pseudoabs = 'PA_thinned_10000nAbs'
 
 
@@ -84,11 +91,11 @@ for(i in 1:length(names)){
 ```{r loc_dist}
 
 # location = c(-0.385843, 51.289680) # bookham common
-location = c(-2.860564, 56.014902) # aberlady
+# location = c(-2.860564, 56.014902) # aberlady
 # location = c(-1.503560, 54.141389) # sharow
 # location = c(-2.247979, 50.632404) # lulworth cove
 # location = c(-1.461817, 54.440435) # great smeaton
-# location = c(-1.110557, 51.602436) # wallingford
+location = c(-1.110557, 51.602436) # wallingford
 
 
 distance = 5000
@@ -170,7 +177,7 @@ Going to use mean variation across all species for the decide score layer
 ```{r}
 
 dec_crop <- mean(var)
-plot(dec_crop)
+plot(dec_crop, col = viridis(50))
 
 ```
 
@@ -180,8 +187,12 @@ plot(dec_crop)
 
 ```{r}
 
-dfm <- dfm %>% 
-  dplyr::select(lon, lat, date, year = yr, species = sp_n, common_name=com_n)
+dfm <- dfm_full %>% 
+  dplyr::select(lon, lat, date, year = yr, species = sp_n, common_name=com_n) #%>% # the stuff below could be used to reduce time it takes to run but would need some changes to the functions.
+# group_by(lon, lat) %>% 
+# summarise(n_recs = n(),
+#           n_spp = length(unique(species)),
+#           last_rec = max(year))
 head(dfm)
 
 # convert records to an sf object
@@ -189,12 +200,12 @@ st_dfm <- st_as_sf(dfm, coords = c('lon', 'lat'), crs = 27700)
 
 # get count of all records as a raster
 # crop
-records <- filter_distance(obj = st_dfm,
-                           distance = distance,
-                           location = location, 
-                           method  = 'buffer')
+system.time(records <- filter_distance(obj = st_dfm,
+                                       distance = distance,
+                                       location = location, 
+                                       method  = 'buffer'))
 
-plot(dec_crop)
+plot(dec_crop, col = viridis(50))
 points(x = dfm$lon, y = dfm$lat, col = 'red')
 plot(st_geometry(records), add = T, pch = 20)
 
@@ -261,7 +272,9 @@ count_records <- function(records_df, # sf object of record counts
     record_weights <- record_counts %>% 
       group_by(lon, lat) %>% 
       dplyr::summarise(last_rec = max(year), # what is the most recent year?
+                       last_date = max(date), # what is the most recent date?
                        yrs_since_last_rec = (year(Sys.Date())-last_rec), # number of years since the last record in a grid cell
+                       days_since_last_rec = Sys.Date() - last_date, # number of days since the last record in a grid cell
                        score = 1/yrs_since_last_rec) %>% # get the big values small and vice-versa, so that larger numbers are 'bad' and smaller numbers are 'good', so that it matches the number of records layer that's also outputted by this function
       ungroup()
     
@@ -327,8 +340,8 @@ rec_counts_time <- count_records(records_df = records,
                                  template_raster = dec_crop,
                                  weight_by_time = TRUE)
 par(mfrow = c(1,2))
-plot(rec_counts, main = 'number of records')
-plot(rec_counts_time, main = 'time since records')
+plot(rec_counts, main = 'number of records', col = viridis(50))
+plot(rec_counts_time, main = 'time since records', col = viridis(50))
 par(mfrow = c(1,1))
 
 ```
@@ -392,13 +405,13 @@ sr_time <- smooth_recording(weighted_layer = dec_crop,
                             recording_impact = 5)
 
 par(mfrow = c(2,3))
-plot(dec_crop, main = 'Raw DECIDE variation')
-plot(sr$weighting_layer, main = 'weight layer, number of records')
-plot(sr$weighted_score, main = 'Downweighted by records')
+plot(dec_crop, main = 'Raw DECIDE variation', col = viridis(50))
+plot(sr$weighting_layer, main = 'weight layer, number of records', col = viridis(50))
+plot(sr$weighted_score, main = 'Downweighted by records', col = viridis(50))
 
-plot(dec_crop, main = 'Raw DECIDE variation')
-plot(sr_time$weighting_layer, main = 'weight layer, 1/(number of years since last record)')
-plot(sr_time$weighted_score, main = 'Downweighted by timing of records')
+plot(dec_crop, main = 'Raw DECIDE variation', col = viridis(50))
+plot(sr_time$weighting_layer, main = 'weight layer, 1/(number of years since last record)', col = viridis(50))
+plot(sr_time$weighted_score, main = 'Downweighted by timing of records', col = viridis(50))
 par(mfrow = c(1,1))
 
 ```
