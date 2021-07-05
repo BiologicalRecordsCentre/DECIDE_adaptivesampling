@@ -24,7 +24,7 @@ source("../../Scripts/modules/filter_distance.R")
 ```{r}
 
 # read in records data
-dfm <- read_csv("../../Data/species_data/moth/DayFlyingMoths_EastNorths_no_duplicates.csv")
+dfm_full <- read_csv("../../Data/species_data/moth/DayFlyingMoths_EastNorths_no_duplicates.csv")
 # dfm <- read_csv("../../Data/species_data/butterfly/butterfly_EastNorths_no_duplicates.csv")
 dfm_full <- fread("../../Data/species_data/butterfly/butterfly_EastNorths_no_duplicates.csv")
 head(dfm_full)
@@ -254,13 +254,21 @@ count_records <- function(records_df, # sf object of record counts
                           weight_by_time = TRUE)
 {
   
-  # Get the counts of records per cell and store as data frame
-  record_counts <- records_df %>% 
-    mutate(lon = unlist(map(records_df$geometry, 1)),
-           lat = unlist(map(records_df$geometry, 2)))  %>% 
-    as.data.frame() %>% 
-    mutate(geometry = NULL)
-  
+   # Get the counts of records per cell and store as data frame
+      if(class(records_df)[1] == 'sf'){
+        
+        record_counts <- records_df %>% 
+          mutate(lon = unlist(map(records_df$geometry, 1)),
+                 lat = unlist(map(records_df$geometry, 2)))  %>% 
+          as.data.frame() %>% 
+          mutate(geometry = NULL)
+        
+      } else if(class(records_df)[1] == "data.frame"){
+        
+        record_counts <- records_df
+        
+      } else{ stop('!! records_df must be class sf or data.frame') }
+      
   if(weight_by_time){
     
     # # get the years ranked    
