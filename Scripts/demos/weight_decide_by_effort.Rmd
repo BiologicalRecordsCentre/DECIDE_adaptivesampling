@@ -310,10 +310,12 @@ smoothed_effort <- focal(x = effort_raster,
                                       0.09, 0.21, 0.33, 0.21, 0.09,
                                       0,    0.09, 0.11, 0.09,    0),
                                     nrow = 5, ncol = 5),
-                         fun = mean,
+                         fun = sum,
                          pad = TRUE,
                          padValue = 0,
                          NAonly=T)
+
+plot(smoothed_effort)
 
 # Convert recording to weighting
 weighting <- smoothed_effort
@@ -358,7 +360,7 @@ plot(raster(matrix(c(0,    0.09, 0.11, 0.09,    0,
 r <- raster(ncols=25, nrows=25, xmn=0)
 
 smoothed_effort <- focal(x = effort_raster, 
-                         w = focalWeight(r, 5, type='Gauss'),
+                         w = focalWeight(effort_raster, c(50), type='Gauss'),
                          pad = TRUE,
                          padValue = 0,
                          NAonly=T)
@@ -368,5 +370,33 @@ weighting <- smoothed_effort
 weighting <- 1/(1+(weighting*recording_impact)) # Outputs a layer of 1s where there are no records and progressively goes to 0 where there are more records
 plot(weighting, col = viridis(50))
 
+
+?floor 
+
+?focal
+
 ```
+
+```{r}
+
+sm_min <- focal(x = effort_raster, 
+                         w = matrix(c(0,    0.09, 0.11, 0.09,    0,
+                                      0.09, 0.21, 0.33, 0.21, 0.09,
+                                      0.11, 0.33,    0.5, 0.33, 0.11,
+                                      0.09, 0.21, 0.33, 0.21, 0.09,
+                                      0,    0.09, 0.11, 0.09,    0),
+                                    nrow = 5, ncol = 5),
+                         fun = max,
+                         pad = TRUE,
+                         padValue = 0,
+                         NAonly=T)
+
+plot(sm_sum, col = viridis(50))
+plot(sm_mean, col = viridis(50))
+plot(sm_max, col = viridis(50))
+plot(sm_min, col = viridis(50))
+
+
+```
+
 
