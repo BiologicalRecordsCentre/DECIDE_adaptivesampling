@@ -71,7 +71,9 @@ filter_distance <- function(obj,
       
     } else if (class(obj)[1] == 'sf' && 
                any(unique(st_geometry_type(obj)) == 'LINESTRING') |
-               any(unique(st_geometry_type(obj)) == 'MULTILINESTRING')){
+               any(unique(st_geometry_type(obj)) == 'MULTILINESTRING') |
+               any(unique(st_geometry_type(obj)) == 'POINT') | 
+               any(unique(st_geometry_type(obj)) == 'MULTIPOINT')){
       c_buf <- st_intersection(obj, 
                                buffed) # crop the sf layer
       

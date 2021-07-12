@@ -252,14 +252,16 @@ eq <- (var)*(preds)
 sqvar <- sqrt(var) * (preds)
 sqpred <- (var) * sqrt(preds)
 
-dec_fls <- list(equal_weight = eq, 
+
+dec_fls <- list(variation = var,
+                equal_weight = eq, 
                 root_variation = sqvar, 
                 root_prediction = sqpred)
 
-par(mfrow = c(3,4))
+par(mfrow = c(4,4))
 
-for(r in 1:3){
-  
+for(r in 1:4){
+ 
   mn <- mean(dec_fls[[r]])
   mn_wt_prob <- raster::weighted.mean(dec_fls[[r]], preds)
   mn_wt_var <- raster::weighted.mean(dec_fls[[r]], var)
@@ -276,8 +278,15 @@ for(r in 1:3){
 
 
 ```
-It's up to us which methods of creating scores we use. Based on these plots, I would say that the one that probably does 'what we want' the most is the 'root_variation, equal weighting' plot (i.e. I think it looks the best, for this region at least). This is because it downweightas the importance of 'nice places' and upweights uncertainty. It also treats all species the same, which means that we aren't guessing as to which species are important in a region.
+
+It's up to us which methods of creating scores we use. Based on these plots, I would say that the one that probably does 'what we want' the most is the 'root_variation, equal weighting' plot (i.e. I think it looks the best, for this region at least). This is because it downweights the importance of 'nice places' and upweights uncertainty. It also treats all species the same, which means that we aren't guessing as to which species are important in a region.
 
 
+```{r}
 
+getwd()
 
+spdf <- read.csv('../../Data/species_data/moth/DayFlyingMoths_East_Norths.csv')
+head(spdf)
+
+```
