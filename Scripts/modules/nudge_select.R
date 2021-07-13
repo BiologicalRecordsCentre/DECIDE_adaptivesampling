@@ -1,11 +1,12 @@
 ## Return a random number of nudges length N
 # from the output of list_function
+# Now redundant because combined this function with the nudge_list function()
 
 # INPUT:
 # nudge_df, output of list_nudges(),
 # n, number of nudges to return
 # weight, whether to weight the values returned based on the weighting column
-# weight_values, the column name containing the weights
+# weighting_column, the column name containing the weights 
 # weight_inflation, How much to inflate the weighting layer by
 
 nudge_select <- function(nudge_df,
@@ -40,7 +41,7 @@ nudge_select <- function(nudge_df,
                          n)
     
     
-  } else{ stop('!!!   Weights must either be TRUE or FALSE, more options will be implemented later   !!!')}
+  } else{ stop('!!!   Weights must either be TRUE or FALSE, more options will be implemented later   !!!') }
   
   nudge_outs <- nudge_df_cut[nudge_inds,]
   
