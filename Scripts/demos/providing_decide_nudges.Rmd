@@ -66,6 +66,7 @@ nud_prop01_cut_F <-  nudge_list(wall_m,
                                 cutoff_value = 0.9, 
                                 cutoff = FALSE,
                                 weight = TRUE,
+                                weighting_column = 'weights',
                                 weight_inflation = 50)
 
 
@@ -74,6 +75,7 @@ nud_prop01_cut_F_unweight <-  nudge_list(wall_m,
                                          cutoff_value = 0.9, 
                                          cutoff = FALSE,
                                          weight = FALSE,
+                                         weighting_column = 'weights',
                                          weight_inflation = 50)
 
 nud_prop01_cut_T <-  nudge_list(wall_m,
@@ -81,6 +83,7 @@ nud_prop01_cut_T <-  nudge_list(wall_m,
                                 cutoff_value = 0.9, 
                                 cutoff = TRUE,
                                 weight = TRUE,
+                                weighting_column = 'weights',
                                 weight_inflation = 50)
 
 
@@ -89,6 +92,7 @@ nud_prop01_cut_T_unweight <-  nudge_list(wall_m,
                                          cutoff_value = 0.9, 
                                          cutoff = TRUE,
                                          weight = FALSE,
+                                         weighting_column = 'weights',
                                          weight_inflation = 50)
 
 
@@ -127,10 +131,12 @@ Here is a new data frame of weighted nudges from above and below the 90th percen
 
 # get a list of potential nudge locations
 nudges <- nudge_list(wall_m,
-                     prop = 0.1, 
+                     n=100,
+                     # prop = 0.01,
                      cutoff_value = 0.9, 
                      cutoff = FALSE,
                      weight = TRUE,
+                     weighting_column = 'decide score',
                      weight_inflation = 10)
 head(nudges)
 
@@ -159,15 +165,17 @@ nl_p_nudge1
 
 We can get a specific number of these nudges using the function 'nudge_select'. This takes the total number of nudges we want (determined by 'n') and samples the data frame outputted from the 'nudge_list' function. The function 'nudge_select' can also be weighted by the DECIDE score, which can be inflated by a user-determined amount, to return only the highest value locations. The reason this function is split from the last one is that I can imagine a user wanting to randomise the nudges they are sent. With the functions split, it means that we would only have to run 'nudge_select' as opposed to also running the 'nudge_list' function above when users want a new sample of nudges. Currently, the areas being shown are only within 5km of the user. However, 'nudge_list' is very likely to be slow with larger rasters because of the 'raster::as.data.frame' function (although I haven't directly tested this yet but have encountered problems in the past). The 'all nudges' panel in the plots below is the same as the previous plot and is being compared to the 100 nudges selected from it weighted by the DECIDE score.
 
+This function isn't needed anymore after changes to the function above.
+
 
 ```{r nudge_subset}
 
-nudge_subset <- nudge_select(nudge_df = nudges, 
-                             n = 100,
-                             cutoff = FALSE,
-                             weight = TRUE,
-                             weighting_column = 'dec_score',
-                             weight_inflation = 10)
+# nudge_subset <- nudge_select(nudge_df = nudges, 
+#                              n = 100,
+#                              cutoff = FALSE,
+#                              weight = TRUE,
+#                              weighting_column = 'dec_score',
+#                              weight_inflation = 10)
 
 
 ```
@@ -175,17 +183,17 @@ nudge_subset <- nudge_select(nudge_df = nudges,
 ```{r nudge_subset_plot, echo = FALSE, warning=FALSE, fig.width=11}
 
 
-nl_p_nudge2 <- ggplot() +
-  geom_sf(data = conv_rast(wall_m, 27700), aes(fill = layer), col = NA) +
-  geom_point(data = nudge_subset, aes(x=lon,y=lat, col='Weighted nudges subset'))  +
-  
-  scale_fill_continuous(type= 'viridis', name = 'DECIDE score') +
-  scale_colour_manual(name = '', values = 'red') +
-  theme_bw() +
-  labs(x='', y='', title = 'Subsetted nudges') + 
-  theme(legend.margin=margin(t=-0.25,l=0.05,b=0.0,r=0.05, unit='cm')) 
-
-nl_p_nudge1 + nl_p_nudge2 + plot_layout(guides = 'collect')
+# nl_p_nudge2 <- ggplot() +
+#   geom_sf(data = conv_rast(wall_m, 27700), aes(fill = layer), col = NA) +
+#   geom_point(data = nudge_subset, aes(x=lon,y=lat, col='Weighted nudges subset'))  +
+#   
+#   scale_fill_continuous(type= 'viridis', name = 'DECIDE score') +
+#   scale_colour_manual(name = '', values = 'red') +
+#   theme_bw() +
+#   labs(x='', y='', title = 'Subsetted nudges') + 
+#   theme(legend.margin=margin(t=-0.25,l=0.05,b=0.0,r=0.05, unit='cm')) 
+# 
+# nl_p_nudge1 + nl_p_nudge2 + plot_layout(guides = 'collect')
 
 ```
 
@@ -410,7 +418,7 @@ final_acc_loc <- lapply(all_outs, filter_distance,
 ```{r nudge_accessible}
 
 
-accessible_nudges <- nudge_accessible(nudges_df = nudge_subset,
+accessible_nudges <- nudge_accessible(nudges_df = nudges,
                                       access_layers = final_acc_loc,
                                       buffer = 200,
                                       crs = 27700,
@@ -483,20 +491,21 @@ The nudging process doesn't take that long but here are some time estimates for 
 ```{r timings, warning = FALSE, message = FALSE}
 
 t_nl <- (system.time(nudges <- nudge_list(wall_m,
-                                          prop = 0.1, 
+                                          n=100,
+                                          # prop = 0.1, 
                                           cutoff_value = 0.9, 
                                           cutoff = FALSE,
                                           weight = TRUE,
                                           weight_inflation = 10)))
 
-t_ns <- system.time(nudge_subset <- nudge_select(nudge_df = nudges, 
-                                                 n = 100,
-                                                 cutoff = FALSE,
-                                                 weight = TRUE,
-                                                 weighting_column = 'dec_score',
-                                                 weight_inflation = 10))
+# t_ns <- system.time(nudge_subset <- nudge_select(nudge_df = nudges, 
+#                                                  n = 100,
+#                                                  cutoff = FALSE,
+#                                                  weight = TRUE,
+#                                                  weighting_column = 'dec_score',
+#                                                  weight_inflation = 10))
 
-t_na <- system.time(accessible_nudges <- nudge_accessible(nudges_df = nudge_subset,
+t_na <- system.time(accessible_nudges <- nudge_accessible(nudges_df = nudges,
                                                           access_layers = final_acc_loc,
                                                           buffer = 200,
                                                           crs = 27700,
@@ -522,10 +531,12 @@ t_mds <- system.time(metadata_single <- nudge_metadata(nudges_df = thinned_nudge
 
 
 
-time_df <- rbind(t_nl, t_ns, t_na, t_nt, t_md, t_mds) %>% 
+time_df <- rbind(t_nl, #t_ns, 
+                 t_na, t_nt, t_md, t_mds) %>% 
   as.data.frame() 
 
-rownames(time_df) <- c('nudge_list', 'nudge_select', 'nudge_accessible', 'nudge_thin', 'nudge_metadata_all', 'nudge_metadata_single')
+rownames(time_df) <- c('nudge_list', #'nudge_select', 
+'nudge_accessible', 'nudge_thin', 'nudge_metadata_all', 'nudge_metadata_single')
 
 time_df <- time_df %>% 
   rownames_to_column(var = 'Function')
