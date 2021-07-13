@@ -86,8 +86,8 @@ for(i in 1:length(names)){
 ```{r loc_dist}
 
 # location = c(-2.730696, 54.026759) # quernmore
-# location = c(-2.860564, 56.014902) # aberlady
-location = c(-1.110557, 51.602436) # wallingford
+location = c(-2.860564, 56.014902) # aberlady
+# location = c(-1.110557, 51.602436) # wallingford
 
 distance = 5000
 
@@ -252,6 +252,7 @@ eq <- (var)*(preds)
 sqvar <- sqrt(var) * (preds)
 sqpred <- (var) * sqrt(preds)
 
+
 dec_fls <- list(variation = var,
                 equal_weight = eq, 
                 root_variation = sqvar, 
@@ -260,7 +261,7 @@ dec_fls <- list(variation = var,
 par(mfrow = c(4,4))
 
 for(r in 1:4){
-  
+ 
   mn <- mean(dec_fls[[r]])
   mn_wt_prob <- raster::weighted.mean(dec_fls[[r]], preds)
   mn_wt_var <- raster::weighted.mean(dec_fls[[r]], var)
@@ -289,20 +290,3 @@ spdf <- read.csv('../../Data/species_data/moth/DayFlyingMoths_East_Norths.csv')
 head(spdf)
 
 ```
-
-
-```{r}
-
-plot(raster::weighted.mean(dec_fls[[3]], preds), col=viridis(50))
-points(x = spdf$lon, y = spdf$lat, col = 'red', pch = 20, cex=0.5)
-
-```
-
-```{r}
-?setdiff
-rm(list=setdiff(ls(), c("dec_fls", "preds", "var", "spdf")))
-
-```
-
-
-
