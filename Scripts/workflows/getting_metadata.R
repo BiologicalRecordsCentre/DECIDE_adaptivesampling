@@ -69,7 +69,7 @@ find_species <- function(location,
     cropped_records_df <- subset(records_df, lon >= buff_reg[1] &
                                    lon <=  buff_reg[2] &
                                    lat >= buff_reg[3] &
-                                   lat <= buff_reg[4])[, name_col]
+                                   lat <= buff_reg[4])[, name_col] # could go inside subset...
     
     return(unique(cropped_records_df))
     
@@ -100,6 +100,7 @@ find_species <- function(location,
 
 # list of species recorded in the cell
 taxa = c('butterfly', 'moth')
+pseudoabs = 'PA_thinned_10000nAbs'
 
 recs_out <- list()
 
@@ -131,32 +132,37 @@ for(i in taxa){
                       weight_by_time = FALSE)
   plot(cr)
   
-  sm_matrix = matrix(c(0,    1, 1, 1,    0,
-                       1, 1, 1, 1, 1,
-                       1, 1,    1, 1, 1,
-                       1, 1, 1, 1, 1,
-                       0,    1, 1, 1,    0), 
-                     nrow = 5, ncol = 5)
+  # # no longer want to do a moving window summary
+  # sm_matrix = matrix(c(0,    1, 1, 1,    0,
+  #                      1, 1, 1, 1, 1,
+  #                      1, 1,    1, 1, 1,
+  #                      1, 1, 1, 1, 1,
+  #                      0,    1, 1, 1,    0), 
+  #                    nrow = 5, ncol = 5)
+  # 
+  # # r <- raster(ncols=36, nrows=18, xmn=0)
+  # # values(r) <- round(runif(ncell(r), max = 10))
+  # # unique(r)
+  # # plot(r)
+  # 
+  # smoothed_effort <- focal(x = cr, 
+  #                          w = sm_matrix,
+  #                          fun = sum,
+  #                          pad = TRUE,
+  #                          padValue = NA,
+  #                          na.rm = T,
+  #                          NAonly = F)
+  # 
+  # plot(smoothed_effort)
+  # 
+  # recs_out[[i]] <- smoothed_effort
+  # names(recs_out[[i]]) <- i
   
-  # r <- raster(ncols=36, nrows=18, xmn=0)
-  # values(r) <- round(runif(ncell(r), max = 10))
-  # unique(r)
-  # plot(r)
+  # save the counds in each cell
+  writeRaster(cr, filename = paste0('Data/metadata/',i,'_summed_records.grd'),
+              overwrite = TRUE)
   
-  smoothed_effort <- focal(x = cr, 
-                           w = sm_matrix,
-                           fun = sum,
-                           pad = TRUE,
-                           padValue = NA,
-                           na.rm = T,
-                           NAonly = F)
   
-  plot(smoothed_effort)
-  
-  recs_out[[i]] <- smoothed_effort
-  names(recs_out[[i]]) <- i
-  
-  # writeRaster(smoothed_effort, filename = paste0('Data/metadata/',i,'_summed_records.grd'))
   
 }
 
@@ -169,7 +175,6 @@ any(is.na(values(metadata_so_far[[1]])))
 # species-level uncertainty
 
 taxa = 'moth'
-pseudoabs = 'PA_thinned_10000nAbs'
 
 
 model_locs <- paste0('/data-s3/thoval/sdm_outputs/', taxa, '/combined_model_outputs/', pseudoabs)
@@ -213,8 +218,34 @@ for(i in 1:length(names)){
 
 
 # species richness
-preds <- stack(lapply(species_stack, FUN = function(x) subset(x, grep(pattern = 'mean_pred',
-                                                                      names(x)))))
+preds_lay <- round(sum(stack(lapply(species_stack, FUN = function(x) subset(x, grep(pattern = 'mean_pred',
+                                                                                    names(x)))))))
+
+## mask
+## crop to GB
+# download map GB
+uk_map <- st_as_sf(getData("GADM", country = "GBR", level = 1, path='Data/environmental_data'))
+uk_map <- st_transform(uk_map, 27700)
+
+# remove nrothern ireland
+gb_map <- uk_map[uk_map$NAME_1 != 'Northern Ireland',]
+
+# convert to spatial for use in raster::mask()
+gb_mask <- as_Spatial(gb_map)
+
+# mask elevation
+sum_preds_gb <- raster::mask(preds_lay, gb_mask[1])
+plot(sum_preds_gb)
+
+writeRaster(sum_preds_gb, filename = paste0('Data/metadata/', taxa, 'sum_prob_pres_GB.grd'),
+            format = 'raster')
+
+
+# uncertainty score
+preds_lay <- mean(stack(lapply(species_stack, FUN = function(x) subset(x, grep(pattern = 'quantile_range',
+                                                                               names(x))))))
+
+
 
 ## this doesn't work - R crashes. Too big?
 pquant <- lapply(preds, FUN = function(x) tdigest::tquantile(tdigest::tdigest(na.omit(values(x))), probs = 0.8))
