@@ -4,17 +4,20 @@
 
 
 smooth_recording <- function(weighted_layer, # layer to be weighted
-                             effort_raster, 
+                             effort_raster,
+                             sm_matrix = matrix(c(0,    0.09, 0.11, 0.09,    0,
+                                                  0.09, 0.21, 0.33, 0.21, 0.09,
+                                                  0.11, 0.33,    1, 0.33, 0.11,
+                                                  0.09, 0.21, 0.33, 0.21, 0.09,
+                                                  0,    0.09, 0.11, 0.09,    0), 
+                                                nrow = 5, ncol = 5),
+                             fun = sum,
                              recording_impact = 10) # the larger the value the less impact it has
 {
   
   smoothed_effort <- focal(x = effort_raster, 
-                           w = matrix(c(0,    0.09, 0.11, 0.09,    0,
-                                        0.09, 0.21, 0.33, 0.21, 0.09,
-                                        0.11, 0.33,    1, 0.33, 0.11,
-                                        0.09, 0.21, 0.33, 0.21, 0.09,
-                                        0,    0.09, 0.11, 0.09,    0), 
-                                      nrow = 5, ncol = 5),
+                           w = sm_matrix,
+                           fun = fun,
                            pad = TRUE,
                            padValue = 0,
                            NAonly=T)
