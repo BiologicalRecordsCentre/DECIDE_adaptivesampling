@@ -17,6 +17,7 @@ location = c(-1.110557, 51.602436) # wallingford
 # location = c(-0.373791, 51.359252) # claremont park london region
 # location = c(-2.785436, 54.012698) # lancaster
 # location = c(-2.730696, 54.026759) # quernmore
+location = c(-0.126791, 50.819506) # brighton
 distance = 5000
 
 
@@ -32,12 +33,12 @@ require(sf)
 require(parallel)
 
 # source functions
-source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/modules/load_gridnumbers.R")
-source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/modules/filter_distance.R")
-source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/modules/recommend_rank.R")
-source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/modules/recommend_metric.R")
-source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/modules/recommend_agg_rank.R")
-source("/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Scripts/modules/extract_metric.R")
+source("Scripts/modules/load_gridnumbers.R")
+source("Scripts/modules/filter_distance.R")
+source("Scripts/modules/recommend_rank.R")
+source("Scripts/modules/recommend_metric.R")
+source("Scripts/modules/recommend_agg_rank.R")
+source("Scripts/modules/extract_metric.R")
 
 
 # # for rich
@@ -112,7 +113,7 @@ aggregate_score_converted <- conv_rast(raster = aggregate_score,
                                        coord = 27700) # British National Grid
 
 ## shape data
-# point to shape locations
+# point to shape locations - move data to a common directory
 # england
 prow_loc <- ("/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/rowmaps_footpathbridleway/rowmaps_footpathbridleway/gridded_data_10km/")
 grnspc_loc <- "/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/OS_greenspaces/OS Open Greenspace (ESRI Shape File) GB/data/gridded_greenspace_data_10km/"

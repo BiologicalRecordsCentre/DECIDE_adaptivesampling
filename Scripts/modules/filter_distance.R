@@ -62,7 +62,7 @@ filter_distance <- function(obj,
       
     } else if(class(obj)[1] == 'RasterLayer' | class(obj)[1] == 'RasterStack'){ # extract the masked extent for raster
       
-      c_buf <- crop(obj, buffed) # crop the raster - creates a square extent 
+      c_buf <- crop(obj, buffed) # crop the raster - creates a square extent
       masked_area <- mask(c_buf, buffed)
       # plot(masked_area) # then mask it to get only the area within the 'travel distance'
       # par(mfrow = c(1,1))
@@ -71,7 +71,9 @@ filter_distance <- function(obj,
       
     } else if (class(obj)[1] == 'sf' && 
                any(unique(st_geometry_type(obj)) == 'LINESTRING') |
-               any(unique(st_geometry_type(obj)) == 'MULTILINESTRING')){
+               any(unique(st_geometry_type(obj)) == 'MULTILINESTRING') |
+               any(unique(st_geometry_type(obj)) == 'POINT') | 
+               any(unique(st_geometry_type(obj)) == 'MULTIPOINT')){
       c_buf <- st_intersection(obj, 
                                buffed) # crop the sf layer
       
@@ -83,6 +85,8 @@ filter_distance <- function(obj,
       
       c_buf <- st_intersection(sf::st_buffer(obj, dist = 0), # this is a hack to get around shapes that self-intersect. Works for some reason?!
                                buffed) # crop the sf layer
+      
+      return(c_buf)
     } 
     
   }

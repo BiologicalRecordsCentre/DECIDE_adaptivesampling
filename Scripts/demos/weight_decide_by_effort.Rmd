@@ -1,0 +1,402 @@
+---
+title: "testing effort layer weighting"
+author: "Thomas MM"
+date: "6/22/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE, warning = F, message = F)
+
+library(tidyverse)
+library(doParallel)
+library(foreach)
+library(raster)
+library(viridis)
+library(lubridate)
+library(data.table)
+
+source("../../Scripts/modules/filter_distance.R")
+source("../../Scripts/modules/crop_records.R")
+source("../../Scripts/modules/count_records.R")
+
+
+```
+
+
+```{r}
+
+# read in records data
+dfm_full <- fread("../../Data/species_data/moth/DayFlyingMoths_EastNorths_no_duplicates.csv")
+# dfm <- read_csv("../../Data/species_data/butterfly/butterfly_EastNorths_no_duplicates.csv")
+dfm_full <- fread("../../Data/species_data/butterfly/butterfly_EastNorths_no_duplicates.csv")
+head(dfm_full)
+
+```
+
+
+## get up to date species data 
+
+```{r species_data, warning=F, echo = F, message = F, include = F}
+
+# model = c('rf', 'lr', 'gam')
+taxa = 'butterfly'
+pseudoabs = 'PA_thinned_10000nAbs'
+
+
+model_locs <- paste0('/data-s3/thoval/sdm_outputs/', taxa, '/combined_model_outputs/', pseudoabs)
+
+names <- gsub(pattern = '_PA_thinned_10000nAbs_weightedmeanensemble.grd', replacement = '', 
+              list.files(model_locs, 
+                         pattern='_weightedmeanensemble.grd'))
+# names
+
+# sdm outputs for each species
+species_stack <- list()
+
+# error outputs
+error_out <- list()
+
+for(i in 1:length(names)){
+  
+  print(names[i])
+  
+  # initiate model list within for loop so that it gets replaced when starting a new species
+  # otherwise we might get some weird overlaps
+  
+  # mean predictions
+  mp <- list.files(model_locs, 
+                   pattern = paste0(names[i], "_", pseudoabs, "_weightedmeanensemble.grd"),
+                   full.names = TRUE)
+  
+  mod_preds <- raster::stack(mp)
+  names(mod_preds) <- paste0(names[i], '_mean_pred')
+  
+  
+  
+  # quantile range
+  qr <- list.files(model_locs, 
+                   pattern = paste0(names[i], "_", pseudoabs, "_rangeensemblequantiles.grd"),
+                   full.names = TRUE)
+  
+  qrnge <- raster::stack(qr)
+  names(qrnge) <- paste0(names[i], '_quantile_range')
+  
+  species_stack[[i]] <- raster::stack(mod_preds, qrnge)
+  
+}
+
+
+```
+
+## location to crop to for all cropping
+
+```{r loc_dist}
+
+# location = c(-0.385843, 51.289680) # bookham common
+# location = c(-2.860564, 56.014902) # aberlady
+# location = c(-1.503560, 54.141389) # sharow
+# location = c(-2.247979, 50.632404) # lulworth cove
+# location = c(-1.461817, 54.440435) # great smeaton
+location = c(-1.110557, 51.602436) # wallingford
+
+
+distance = 5000
+
+```
+
+## Crop prediction and variation to desired location 
+
+```{r crop, warning = F, include = F}
+
+registerDoParallel(7)
+
+# out_cropped <- list()
+system.time(
+  out_cropped <- foreach(s = 1:length(species_stack)) %dopar% {
+    
+    print(s)
+    
+    sp <- species_stack[[s]]
+    
+    
+    # crop the prediction
+    crop_pred <- filter_distance(obj = subset(sp, grep(pattern = 'mean_pred',
+                                                       names(sp))),
+                                 method = 'buffer',
+                                 distance = distance,
+                                 location = location)
+    
+    # crop the error
+    crop_err <- filter_distance(obj = subset(sp, grep(pattern = 'quantile_range',
+                                                      names(sp))),
+                                method = 'buffer',
+                                distance = distance,
+                                location = location)
+    
+    if(length(names(crop_pred))>1){
+      # get the mean
+      m_pred_av <- calc(crop_pred,
+                        mean, na.rm = T)
+      names(m_pred_av) <- 'predictions'
+      
+      
+      m_quant_av <- calc(crop_err,
+                         mean, na.rm = T)
+      names(m_quant_av) <- 'error'
+    } else {
+      
+      m_pred_av <- crop_pred
+      m_quant_av <- crop_err
+      
+    }
+    
+    out_rasts <- list(m_pred_av, m_quant_av)
+    names(out_rasts) <- c('predictions', 'quantile_var')
+    
+    return(out_rasts)
+    
+  }
+)
+
+registerDoSEQ()
+
+names(out_cropped) <- names
+
+
+# get the cropped probability of presence
+preds <- stack(lapply(1:length(out_cropped), FUN = function(x) out_cropped[[x]]$predictions))
+names(preds) <- names(out_cropped)
+
+# get the cropped variation
+var <- stack(lapply(1:length(out_cropped), FUN = function(x) out_cropped[[x]]$quantile_var))
+names(var) <- names(out_cropped)
+
+
+```
+
+Going to use mean variation across all species for the decide score layer
+
+```{r}
+
+dec_crop <- mean(var)
+plot(dec_crop, col = viridis(50))
+
+```
+
+
+## crop species data frame to region of interest
+
+
+```{r}
+
+dfm <- dfm_full %>% 
+  dplyr::select(lon, lat, date, year = yr, species = sp_n, common_name=com_n) #%>% # the stuff below could be used to reduce time it takes to run but would need some changes to the functions.
+# group_by(lon, lat) %>% 
+# summarise(n_recs = n(),
+#           n_spp = length(unique(species)),
+#           last_rec = max(year))
+head(dfm)
+
+# convert records to an sf object
+st_dfm <- st_as_sf(dfm, coords = c('lon', 'lat'), crs = 27700)
+
+# get count of all records as a raster
+# very slow
+system.time(records <- filter_distance(obj = st_dfm,
+                                       distance = distance,
+                                       location = location, 
+                                       method  = 'buffer'))
+
+plot(dec_crop, col = viridis(50))
+points(x = dfm$lon, y = dfm$lat, col = 'red')
+plot(st_geometry(records), add = T, pch = 20)
+
+
+# crop records directly in the data frame
+system.time(records <- crop_records(cropped_raster = dec_crop,
+                                    records_df = dfm))
+head(records)
+
+```
+
+## function to count the number of records that falls in each cell of the raster
+
+We need a way of downweighting cells that have lots of sightings in them. With weight_by_time = FALSE in the function below, it returns a layer of the number of records in each grid cell, irrespective of the year in which those records were made.
+
+But we also want to downweight cells that have recent records in them. 
+
+Below are a series of steps that I have taken to try and weight by timings:
+
+### first
+
+I have done it so that all the unique years in the records dataframe are ranked oldest to newest, and used this rank to divide the number of records in a cell. Meaning that the oldest records in a cell will be divided by 1; the newest by the number of unique records. 
+
+The problem is: If we consider two cells that were recorded in the oldest year, e.g. 2010, they are both divided by 1. But if one cell has 2 records and the other 10, then the one with more records will be upweighted relative to the one with fewer records. So, what do we do?
+
+### second
+
+Other option is take the number of records in a cell and the number of years that have passed since those records were made. Divide the number of years since the last record by the number of records and use that as a score. The problem with this is that the records across all years are considered important in the 'score' given to a cell; whereas, we are probably most interested in only the most recent records. I.e. we don't care that a cell had 1 record in 2011 if it had 10 in 2019.
+
+### third 
+
+Other option is to take the number of years since the most recent record and divide it by the number of records in that year. This means that grid cells with few records from a long time ago would be the most upweighted. Grid cells visited recently with most records would be the most downweighted. The problem is that this treats records in the same way as the number of years since the last record and means that, for e.g., 1 record in 2013 [(2021-2013)/1=8] has a higher weighting than 5 records in 2011 [(2021-2011)/5=2]. Which we don't want. 
+
+### fourth and final
+
+So, we probably want time since the last record, irrespective of the number of visits. So, just time since the last record as the way of creating a weighting to affect the decide score. I have done 1/(number of years since last record), so that small numbers are places to go (i.e. with few records) and large numbers are places to avoid (i.e. lots of records/most recent records). This is so that the output of the 'weighted by time' option in the function, is consistent with outputting just a count of the number of records.
+
+This function can now produce two outputs. The first is just the number of records in a cell across all years. The second, is 1 divided by the number of years since the most recent record. In both cases, larger numbers are bad (i.e. most/most recent records) and smaller numbers are better (i.e. fewest/oldest records).
+
+In both plots, larger numbers are bad (i.e. most/most recent records) and smaller numbers are better (i.e. fewest/oldest records). I have shown how both methods work in the rest of the workflow (i.e. two sets of plots for the next functions). 'Number of records' refers to weighting by the raw numbers; 'time since records' refers to weighting by the time since the most recent records.
+
+
+```{r, fig.width=10}
+
+rec_counts <- count_records(records_df = records, 
+                            template_raster = dec_crop,
+                            weight_by_time = FALSE)
+
+rec_counts_time <- count_records(records_df = records, 
+                                 template_raster = dec_crop,
+                                 weight_by_time = TRUE)
+par(mfrow = c(1,2))
+plot(rec_counts, main = 'number of records', col = viridis(50))
+plot(rec_counts_time, main = 'time since records', col = viridis(50))
+par(mfrow = c(1,1))
+
+```
+
+## function to create a smoothed recording layer
+
+The function below uses a moving window to sum all the records within a 5x5 matrix to create a 'smoothed' effort layer. It then does:
+
+$1/(1+(SmoothedEffort*RecordingImpact))$
+
+Where recording impact is a way to inflate or reduce the effect of the effort layer. The "1+" is because lots of values were between 0-1 which caused problems when dividing the 1 by the number. This means that high numbers of $(SmoothedEffort*RecordingImpact)$ ends up in a very low weighting score for a grid cell. The raster generated is then simply multiplied by the mean of the raw variation across all species to produce a DECIDE score which has been downweighted by records.
+
+
+```{r, fig.width=10}
+
+sr <- smooth_recording(weighted_layer = dec_crop,
+                       effort_raster = rec_counts,
+                       recording_impact = 5)
+
+sr_time <- smooth_recording(weighted_layer = dec_crop,
+                            effort_raster = rec_counts_time,
+                            recording_impact = 5)
+
+par(mfrow = c(2,3))
+plot(dec_crop, main = 'Raw DECIDE variation', col = viridis(50))
+plot(sr$weighting_layer, main = 'weight layer, number of records', col = viridis(50))
+plot(sr$weighted_score, main = 'Downweighted by records', col = viridis(50))
+
+plot(dec_crop, main = 'Raw DECIDE variation', col = viridis(50))
+plot(sr_time$weighting_layer, main = 'weight layer, 1/(number of years since last record)', col = viridis(50))
+plot(sr_time$weighted_score, main = 'Downweighted by timing of records', col = viridis(50))
+par(mfrow = c(1,1))
+
+```
+
+
+```{r, fig.width=10, fig.height=9}
+
+
+smoothed_effort <- focal(x = effort_raster, 
+                         w = matrix(c(0,    0.09, 0.11, 0.09,    0,
+                                      0.09, 0.21, 0.33, 0.21, 0.09,
+                                      0.11, 0.33,    1, 0.33, 0.11,
+                                      0.09, 0.21, 0.33, 0.21, 0.09,
+                                      0,    0.09, 0.11, 0.09,    0),
+                                    nrow = 5, ncol = 5),
+                         fun = sum,
+                         pad = TRUE,
+                         padValue = 0,
+                         NAonly=T)
+
+plot(smoothed_effort)
+
+# Convert recording to weighting
+weighting <- smoothed_effort
+weighting <- 1/(1+(weighting*recording_impact)) # Outputs a layer of 1s where there are no records and progressively goes to 0 where there are more records
+
+weighting_mean <- weighting
+
+# par(mfrow = c(2,2))
+plot(weighting_sum, col = viridis(50), main = 'sum')
+points(x = dfm$lon, y = dfm$lat, col = 'red', pch = 20, cex = 0.6)
+plot(weighting_min, col = viridis(50), main = 'min')
+points(x = dfm$lon, y = dfm$lat, col = 'red', pch = 20, cex = 0.6)
+plot(weighting_max, col = viridis(50), main = 'max')
+points(x = dfm$lon, y = dfm$lat, col = 'red', pch = 20, cex = 0.6)
+plot(weighting_mean, col = viridis(50), main = 'mean')
+points(x = dfm$lon, y = dfm$lat, col = 'red', pch = 20, cex = 0.6)
+
+# set minimum value to original layer
+M <- minValue(weighted_layer)
+
+# for now, just multiplying the weighted_layer by the weighting
+adjusted_score <- weighted_layer * weighting
+adjusted_score[adjusted_score < M] <- M # change the lowest records to be equal to the original decide score minimum
+
+
+plot(sr_time$weighted_score, col = viridis(50))
+plot(adjusted_score, col = viridis(50))
+
+plot(raster(focalWeight(raster(ncols=36, nrows=36, xmn=0), 4, type = 'Gaus')))
+plot(raster(matrix(c(0,    0.09, 0.11, 0.09,    0,
+                     0.09, 0.21, 0.33, 0.21, 0.09,
+                     0.11, 0.33,    1, 0.33, 0.11,
+                     0.09, 0.21, 0.33, 0.21, 0.09,
+                     0,    0.09, 0.11, 0.09,    0),
+                   nrow = 5, ncol = 5)))
+
+```
+
+
+```{r}
+
+r <- raster(ncols=25, nrows=25, xmn=0)
+
+smoothed_effort <- focal(x = effort_raster, 
+                         w = focalWeight(effort_raster, c(50), type='Gauss'),
+                         pad = TRUE,
+                         padValue = 0,
+                         NAonly=T)
+
+# Convert recording to weighting
+weighting <- smoothed_effort
+weighting <- 1/(1+(weighting*recording_impact)) # Outputs a layer of 1s where there are no records and progressively goes to 0 where there are more records
+plot(weighting, col = viridis(50))
+
+
+?floor 
+
+?focal
+
+```
+
+```{r}
+
+sm_min <- focal(x = effort_raster, 
+                         w = matrix(c(0,    0.09, 0.11, 0.09,    0,
+                                      0.09, 0.21, 0.33, 0.21, 0.09,
+                                      0.11, 0.33,    0.5, 0.33, 0.11,
+                                      0.09, 0.21, 0.33, 0.21, 0.09,
+                                      0,    0.09, 0.11, 0.09,    0),
+                                    nrow = 5, ncol = 5),
+                         fun = max,
+                         pad = TRUE,
+                         padValue = 0,
+                         NAonly=T)
+
+plot(sm_sum, col = viridis(50))
+plot(sm_mean, col = viridis(50))
+plot(sm_max, col = viridis(50))
+plot(sm_min, col = viridis(50))
+
+
+```
+
+

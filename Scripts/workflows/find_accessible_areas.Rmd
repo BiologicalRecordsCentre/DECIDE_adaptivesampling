@@ -23,7 +23,7 @@ accesspoints
 
 ```{r file_locs}
 
-
+# all the constraint layers are here...
 list.files("/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/")
 
 prow_loc <- ("/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/rowmaps_footpathbridleway/rowmaps_footpathbridleway/gridded_data")

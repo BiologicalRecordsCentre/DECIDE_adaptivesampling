@@ -9,9 +9,9 @@
 
 
 # load data frame of 50% flight periods
-fly_df <- read.csv('Data/taxonomy/25_75_flight_periods_inverts.csv')
+fly_df <- read.csv('/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Data/taxonomy/25_75_flight_periods_inverts.csv')
 
-head(fly_df)
+# head(fly_df)
 
 library(lubridate) # possible to do it without lubridate, but it's nicer with
 
@@ -22,6 +22,8 @@ library(lubridate) # possible to do it without lubridate, but it's nicer with
 filter_phenology <- function(date = Sys.Date(), # needs to be in format "YYYY-MM-DD", default is current day
                              taxa_list = 'any', # must be one or multiple of 'butterfly', 'moth', 'orthoptera'
                              location = c(-1.110557, 51.602436)){ # can be a 1 latitude number, a  lat_lon (although only looks at latitude), or NA
+  
+  require(lubridate)
   
   taxa_list <- tolower(taxa_list)
   
@@ -72,17 +74,19 @@ filter_phenology <- function(date = Sys.Date(), # needs to be in format "YYYY-MM
              day_lower_flight_period = lwr,
              day_upper_flight_period = upr))
   
+  ## change this to return species based on out_df
+  
   
   # return a list specifying the date used, the list of species and the data
   # frame with the flight periods (in Julian Day) and latitude values for 
   # each of the species
-  return(list(date=date, species = fly_sp_list, full_df = out_df))
+  return(list(date=date, species = unique(out_df$species), full_df = out_df))
   
 }
 
 
 ####    Testing    ####
-filter_phenology(data = Sys.Date(),
-                 taxa_list = "moth",
-                 location = c(-2, 60))
+# filter_phenology(data = Sys.Date(),
+#                  taxa_list = "moth",
+#                  location = c(-2, 60))
 
