@@ -12,6 +12,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(raster)
 library(patchwork)
+library(spThin)
 
 
 source("../../Scripts/modules/filter_distance.R")
@@ -38,7 +39,7 @@ First, need to prepare the raster data for use; load it in and crop to a locatio
 
 ```{r dec_rast, message = FALSE, warning = FALSE}
 
-mgb <- raster('../../Data/species_data/decide_scores/moth_weighted_prob_pres_GB_decide_score.grd')
+mgb <- raster('/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Data/species_data/decide_scores/moth_weighted_prob_pres_GB_decide_score.grd')
 
 
 location = c(-1.110557, 51.602436) # wallingford
@@ -416,8 +417,6 @@ final_acc_loc <- lapply(all_outs, filter_distance,
 
 
 ```{r nudge_accessible}
-
-
 accessible_nudges <- nudge_accessible(nudges_df = nudges,
                                       access_layers = final_acc_loc,
                                       buffer = 200,
@@ -425,8 +424,6 @@ accessible_nudges <- nudge_accessible(nudges_df = nudges,
                                       lon = 'lon',
                                       lat = 'lat',
                                       plot = TRUE)
-
-
 ```
 
 ### 4. Thin the nudges
@@ -435,18 +432,13 @@ There is unlikely to be much point in providing the user with nudges that are ve
 
 
 ```{r thin_nudge, warning = FALSE, message = FALSE, echo = T}
-
-
 thinned_nudges <- nudge_thin(decide_raster = wall_m,
                              nudge_df = accessible_nudges$nudges,
                              lon = 'lon',
                              lat = 'lat',
                              crs = 27700, 
-                             buffer_distance = 1000,
-                             sample_num = 1)
-
-thinned_nudges$plot
-
+                             buffer_distance = 1,
+                             plot = TRUE)
 ```
 
 ### "Final" nudges
@@ -518,8 +510,7 @@ t_nt <- system.time(thinned_nudges <- nudge_thin(decide_raster = wall_m,
                                                  lon = 'lon',
                                                  lat = 'lat',
                                                  crs = 27700, 
-                                                 buffer_distance = 1000,
-                                                 sample_num = 1))
+                                                 buffer_distance = 1))
 
 t_md <- system.time(metadata <- nudge_metadata(nudges_df = thinned_nudges$nudges,
                                                access = final_acc_loc,

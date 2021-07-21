@@ -55,13 +55,13 @@ nudge_thin <- function(decide_raster, # the original raster layer
   # by the user
   
   # First spThin needs the points as lat and long
-  spat_nudge <- st_transform(spat_nudge, crs = 4326)
-  XY <- st_coordinates(spat_nudge)
+  spat_nudge_lat_lon <- st_transform(spat_nudge, crs = 4326)
+  XY <- st_coordinates(spat_nudge_lat_lon)
 
   # Do the thinning
   sn_thin <- spThin::thin(loc.data = data.frame(sp = 'na',
-                                 lon = XY[ , 'X'],
-                                 lat = XY[ , 'Y']),
+                                               lon = XY[ , 'X'],
+                                               lat = XY[ , 'Y']),
                          long.col = 'lon',
                          lat.col = 'lat',
                          spec.col = 'sp', 
@@ -72,7 +72,7 @@ nudge_thin <- function(decide_raster, # the original raster layer
                          write.log.file = FALSE)
   
   # Used the row numbers from the thinned dataset to subset
-  # the orignal dataset (this is faster than transforming htis new object)
+  # the original dataset (this is faster than transforming this new object)
   spat_nudge <- spat_nudge[as.numeric(row.names(sn_thin[[1]])), ]
   
   if(plot == TRUE){
