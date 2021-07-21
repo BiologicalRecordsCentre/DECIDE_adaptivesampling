@@ -13,7 +13,7 @@
 # OUTPUT:
 
 # data frame of nudges
-# plot showing the original nudges and selected nudges
+# plot showing the original nudges and selected nudges (only is plot = TRUE)
 
 nudge_thin <- function(decide_raster, # the original raster layer
                        nudge_df, # the data frame of nudges to thin, can be in any form as long as it has a 'lon' and 'lat' column
@@ -75,22 +75,28 @@ nudge_thin <- function(decide_raster, # the original raster layer
   # the orignal dataset (this is faster than transforming htis new object)
   spat_nudge <- spat_nudge[as.numeric(row.names(sn_thin[[1]])), ]
   
-  ### fix plotting
-  p <- ggplot() +
-    geom_sf(data = conv_rast(decide_raster, crs), aes(fill = layer), col = NA) +
-    geom_sf(data = spat_nudge, aes(col = 'Thinned nudges'), pch = 20, size = 3, pch = 1)  +
-    geom_point(data = orig_nudges, aes(x=lon, y=lat, col = 'Original nudges'), pch = 20, size = 1.5) +
-    theme_bw() +
-    labs(y='Longtitude', x='Latitude') +
-    scale_fill_continuous(type = 'viridis', name = 'Layer value') + 
-    scale_colour_manual(name = '', values = c('red', 'yellow'))
-  
   if(plot == TRUE){
     print('... Plotting...')
+    ### fix plotting
+    p <- ggplot() +
+      geom_sf(data = conv_rast(decide_raster, crs), aes(fill = layer), col = NA) +
+      geom_sf(data = spat_nudge, aes(col = 'Thinned nudges'), pch = 20, size = 3, pch = 1)  +
+      geom_point(data = orig_nudges, aes(x=lon, y=lat, col = 'Original nudges'), pch = 20, size = 1.5) +
+      theme_bw() +
+      labs(y='Longtitude', x='Latitude') +
+      scale_fill_continuous(type = 'viridis', name = 'Layer value') + 
+      scale_colour_manual(name = '', values = c('red', 'yellow'))
     print(p)
+    
+    return(list(nudges = spat_nudge,
+                plot = p))    
+    
+  } else {
+    
+    return(list(nudges = spat_nudge))
+    
   }
   
-  return(list(nudges = spat_nudge,
-              plot = p))
+
   
 }
