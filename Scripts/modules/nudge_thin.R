@@ -7,32 +7,22 @@
 # lon = 'lon', # the name of the longitude column in the data frame
 # lat = 'lat',  # the name of the latitude column in the data frame
 # crs = st_crs(decide_raster), # the coordinates system of the base raster - used in making the grid
-# buffer_distance, # the resolution of the grid to sample from - on the scale of the raster
-# sample_num, # number of nudges to sample per grid
+# buffer_distance, # the closest you want two points to be (km)
 # plot = FALSE, # whether or not to plot output
-# square = TRUE) # use a square or hexagonal grid
 
 # OUTPUT:
 
 # data frame of nudges
-# the grid, and
-# plot showing the original nudges, selected nudges and grid used (optional)
-
-
+# plot showing the original nudges and selected nudges
 
 nudge_thin <- function(decide_raster, # the original raster layer
                        nudge_df, # the data frame of nudges to thin, can be in any form as long as it has a 'lon' and 'lat' column
                        lon = 'lon', # the name of the longitude column in the data frame
                        lat = 'lat',  # the name of the latitude column in the data frame
                        crs = st_crs(decide_raster), # the coordinates system of the base raster - used in making the grid
-                       buffer_distance, # the resolution of the grid to sample from - on the scale of the raster
-                       sample_num, # number of nudges to sample per grid
-                       plot = FALSE, # whether or not to plot output
-                       square = TRUE) # use a square or hexagonal grid
+                       buffer_distance = 1, # the closest you want two points to be (km)
+                       plot = FALSE) # whether or not to plot output
 {
-  
-  # create a grid to sample from
-  spat_grd <- st_make_grid(conv_rast(decide_raster, crs), cellsize = buffer_distance, square = square)
   
   # convert nudges to sf points object
   
@@ -58,37 +48,37 @@ nudge_thin <- function(decide_raster, # the original raster layer
   } else {
     
     stop('! Function only works with objects of class "sf" and "data.frame"')
+    
   }
   
+  # Thin the points using spThin and the distance specified
+  # by the user
   
+  # First spThin needs the points as lat and long
+  spat_nudge <- st_transform(spat_nudge, crs = 4326)
+  XY <- st_coordinates(spat_nudge)
+
+  # Do the thinning
+  sn_thin <- spThin::thin(loc.data = data.frame(sp = 'na',
+                                 lon = XY[ , 'X'],
+                                 lat = XY[ , 'Y']),
+                         long.col = 'lon',
+                         lat.col = 'lat',
+                         spec.col = 'sp', 
+                         thin.par = buffer_distance, 
+                         reps = 1,
+                         locs.thinned.list.return = TRUE,
+                         write.files = FALSE,
+                         write.log.file = FALSE)
   
-  # go through each grid cell, sample from all the points in the grid
-  # return sample_num points per grid cell
-  l_out <- lapply(1:length(spat_grd), FUN = function(x){
-    
-    # sample from a grid cell
-    # only if grid contains a point
-    if(dim(st_intersection(spat_nudge, spat_grd[x,]))[1]>0){
-      
-      # sample 'sample_num' points from the grid cell of interest
-      # could also determine number of nudges based on the number of points in the cell
-      # i.e. the proportion of points in that cell?
-      sample_index <- sample(1:dim(st_intersection(spat_nudge, spat_grd[x,]))[1], 
-                             size = ifelse(sample_num <= dim(st_intersection(spat_nudge, spat_grd[x,]))[1], # if the number of points asked for is less than the number in the cell then  
-                                           sample_num, # return the number asked for
-                                           dim(st_intersection(spat_nudge, spat_grd[x,]))[1])) # if more, then return all the points in the cell
-      
-      # return the sampled point within that grid
-      return(st_intersection(spat_nudge, spat_grd[x,])[sample_index,])
-    }
-    
-  })
+  # Used the row numbers from the thinned dataset to subset
+  # the orignal dataset (this is faster than transforming htis new object)
+  spat_nudge <- spat_nudge[as.numeric(row.names(sn_thin[[1]])), ]
   
   ### fix plotting
   p <- ggplot() +
     geom_sf(data = conv_rast(decide_raster, crs), aes(fill = layer), col = NA) +
-    geom_sf(data = spat_grd, fill = NA, col = 'black') +
-    geom_sf(data = do.call('rbind', l_out), aes(col = 'Thinned nudges'), pch = 20, size = 3, pch = 1)  +
+    geom_sf(data = spat_nudge, aes(col = 'Thinned nudges'), pch = 20, size = 3, pch = 1)  +
     geom_point(data = orig_nudges, aes(x=lon, y=lat, col = 'Original nudges'), pch = 20, size = 1.5) +
     theme_bw() +
     labs(y='Longtitude', x='Latitude') +
@@ -100,8 +90,7 @@ nudge_thin <- function(decide_raster, # the original raster layer
     print(p)
   }
   
-  return(list(nudges = do.call('rbind', l_out),
-              grid = spat_grd,
+  return(list(nudges = spat_nudge,
               plot = p))
   
 }
