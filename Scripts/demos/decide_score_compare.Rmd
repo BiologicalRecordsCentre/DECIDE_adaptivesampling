@@ -1,0 +1,292 @@
+---
+title: "Comparing decide score creation methods"
+output:
+  html_document:
+    df_print: paged
+---
+
+
+```{r, echo = F, include = FALSE}
+
+library(tidyverse)
+library(doParallel)
+library(foreach)
+library(raster)
+library(viridis)
+
+source("../../Scripts/modules/filter_distance.R")
+
+```
+
+
+
+```{r species_data, warning=F, echo = F, message = F, include = F}
+
+# model = c('rf', 'lr', 'gam')
+taxa = 'moth'
+pseudoabs = 'PA_thinned_10000nAbs'
+
+
+model_locs <- paste0('/data-s3/thoval/sdm_outputs/', taxa, '/combined_model_outputs/', pseudoabs)
+
+names <- gsub(pattern = '_PA_thinned_10000nAbs_weightedmeanensemble.grd', replacement = '', 
+              list.files(model_locs, 
+                         pattern='_weightedmeanensemble.grd'))
+# names
+
+# sdm outputs for each species
+species_stack <- list()
+
+# error outputs
+error_out <- list()
+
+for(i in 1:length(names)){
+  
+  print(names[i])
+  
+  # initiate model list within for loop so that it gets replaced when starting a new species
+  # otherwise we might get some weird overlaps
+  
+  # mean predictions
+  mp <- list.files(model_locs, 
+                   pattern = paste0(names[i], "_", pseudoabs, "_weightedmeanensemble.grd"),
+                   full.names = TRUE)
+  
+  mod_preds <- raster::stack(mp)
+  names(mod_preds) <- paste0(names[i], '_mean_pred')
+  
+  
+  
+  # quantile range
+  qr <- list.files(model_locs, 
+                   pattern = paste0(names[i], "_", pseudoabs, "_rangeensemblequantiles.grd"),
+                   full.names = TRUE)
+  
+  qrnge <- raster::stack(qr)
+  names(qrnge) <- paste0(names[i], '_quantile_range')
+  
+  species_stack[[i]] <- raster::stack(mod_preds, qrnge)
+  
+}
+
+# # name the list entries
+# names(species_stack) <- names
+# par(mfrow = c(2,2))
+# for(i in 5:8){
+#   
+#   plot(species_stack[[i]][[1]], col = viridis(50), main = names(species_stack)[i])
+#   plot(species_stack[[i]][[2]], col = viridis(50))
+#   
+# }
+
+```
+
+# location + distance
+
+```{r loc_dist}
+
+# location = c(-2.730696, 54.026759) # quernmore
+location = c(-2.860564, 56.014902) # aberlady
+# location = c(-1.110557, 51.602436) # wallingford
+
+distance = 5000
+
+```
+
+### crop
+
+cropping to Aberlady bay, Edinburgh
+
+```{r crop, warning = F}
+
+registerDoParallel(7)
+
+# out_cropped <- list()
+system.time(
+  out_cropped <- foreach(s = 1:length(species_stack)) %dopar% {
+    
+    print(s)
+    
+    sp <- species_stack[[s]]
+    
+    
+    # crop the prediction
+    crop_pred <- filter_distance(obj = subset(sp, grep(pattern = 'mean_pred',
+                                                       names(sp))),
+                                 method = 'buffer',
+                                 distance = distance,
+                                 location = location)
+    
+    # crop the error
+    crop_err <- filter_distance(obj = subset(sp, grep(pattern = 'quantile_range',
+                                                      names(sp))),
+                                method = 'buffer',
+                                distance = distance,
+                                location = location)
+    
+    if(length(names(crop_pred))>1){
+      # get the mean
+      m_pred_av <- calc(crop_pred,
+                        mean, na.rm = T)
+      names(m_pred_av) <- 'predictions'
+      
+      
+      m_quant_av <- calc(crop_err,
+                         mean, na.rm = T)
+      names(m_quant_av) <- 'error'
+    } else {
+      
+      m_pred_av <- crop_pred
+      m_quant_av <- crop_err
+      
+    }
+    
+    out_rasts <- list(m_pred_av, m_quant_av)
+    names(out_rasts) <- c('predictions', 'quantile_var')
+    
+    return(out_rasts)
+    
+  }
+)
+
+registerDoSEQ()
+
+names(out_cropped) <- names
+
+
+# get the cropped probability of presence
+preds <- stack(lapply(1:length(out_cropped), FUN = function(x) out_cropped[[x]]$predictions))
+names(preds) <- names(out_cropped)
+
+# get the cropped variation
+var <- stack(lapply(1:length(out_cropped), FUN = function(x) out_cropped[[x]]$quantile_var))
+names(var) <- names(out_cropped)
+
+
+```
+
+
+## plot relationship between presence and variation
+
+```{r plot_rel_function}
+
+plot_rel <- function(pred_lay, var_lay, dec) {
+  
+ df <- as.data.frame(pred_lay, xy = T) %>% na.omit()
+ 
+ df2 <- df %>% 
+    pivot_longer(cols = 3:dim(df)[2], names_to = 'species_pred', values_to = 'preds') %>% 
+   cbind(var = as.data.frame(var_lay, xy = T) %>% na.omit() %>% 
+            pivot_longer(cols = 3:dim(df)[2], names_to = 'species_var', values_to = 'var') %>% 
+           dplyr::select(var)) %>% 
+   arrange(species_pred, x, y)
+  
+ df2 %>% 
+   ggplot(aes(x = preds, y = var, col = species_pred)) +
+   geom_smooth() +
+   guides(colour = FALSE) %>% 
+   return()
+  
+}
+
+
+```
+
+
+```{r, relationship1}
+
+plot_rel(pred_lay = preds, 
+         var_lay = var) +
+  labs(x='Probability of presence', y = 'Variation') +
+  theme_bw()
+
+
+```
+
+
+```{r, relationship2, fig.width=10, fig.height=10}
+
+plot_rel(pred_lay = preds, 
+         var_lay = var) +
+  labs(x='Probability of presence', y = 'Variation') +
+  theme_bw() +
+  geom_point(alpha = 0.2) +
+  facet_wrap(~species_pred) +
+  xlim(0,1)
+
+
+
+```
+
+
+## species-level decide score
+
+There are multiple ways of getting DECIDE scores. There are two steps to this process.
+
+First step, create a DECIDE score for each species. So far, we have been doing this in three ways:
+
+* $$ProbabilityOfPresence*Variation$$ 
+
+* $$ProbabilityOfPresence*\sqrt{Variation}$$ 
+
+* $$\sqrt{ProbabilityOfPresence}*Variation$$
+
+Second step, creating a DECIDE score across all species. So far, we have been doing this in three ways:
+
+* arithmetic mean
+
+* arithmetic mean weighted by variation (within each grid cell)
+
+* arithmetic mean weighted by probability of presence (within each grid cell)
+
+Bonus option:
+
+* 0.9 quantile of the DECIDE score for each species in a grid cell
+
+It is important to note that, because the DECIDE Score is <1, taking the square root of a value will actually upweight rather than downweight it. Here are comparison plots for all combinations of methods:
+
+
+```{r, all_opts_sofar, message=F, warning=F, fig.width=10, fig.height=9}
+
+eq <- (var)*(preds)
+sqvar <- sqrt(var) * (preds)
+sqpred <- (var) * sqrt(preds)
+
+
+dec_fls <- list(variation = var,
+                equal_weight = eq, 
+                root_variation = sqvar, 
+                root_prediction = sqpred)
+
+par(mfrow = c(4,4))
+
+for(r in 1:4){
+ 
+  mn <- mean(dec_fls[[r]])
+  mn_wt_prob <- raster::weighted.mean(dec_fls[[r]], preds)
+  mn_wt_var <- raster::weighted.mean(dec_fls[[r]], var)
+  q90 <- calc(dec_fls[[r]], fun=function(x) quantile(x, .9, na.rm=TRUE))
+  
+  plot(mn, main = paste0(names(dec_fls)[r], ', unweighted mean'), col=viridis(50))
+  plot(mn_wt_var, main = paste0(names(dec_fls)[r], ', weighted by var'), col=viridis(50))
+  plot(mn_wt_prob, main = paste0(names(dec_fls)[r], ', weighted by prob'), col=viridis(50))
+  plot(q90, main = paste0(names(dec_fls)[r], ', 0.9 quantile'), col=viridis(50))
+
+  
+}
+
+
+
+```
+
+It's up to us which methods of creating scores we use. Based on these plots, I would say that the one that probably does 'what we want' the most is the 'root_variation, equal weighting' plot (i.e. I think it looks the best, for this region at least). This is because it downweights the importance of 'nice places' and upweights uncertainty. It also treats all species the same, which means that we aren't guessing as to which species are important in a region.
+
+
+```{r}
+
+getwd()
+
+spdf <- read.csv('../../Data/species_data/moth/DayFlyingMoths_East_Norths.csv')
+head(spdf)
+
+```
