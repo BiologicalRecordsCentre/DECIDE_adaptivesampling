@@ -6,7 +6,6 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-
 knitr::opts_chunk$set(echo = TRUE)
 
 library(tidyverse)
@@ -14,17 +13,14 @@ library(raster)
 library(patchwork)
 library(spThin)
 
-
 source("../../Scripts/modules/filter_distance.R")
 source("../../Scripts/modules/convert_raster.R")
+source("../../Scripts/modules/metadata_accessible.R")
 source("../../Scripts/modules/nudge_thin.R")
 source("../../Scripts/modules/nudge_select.R")
 source("../../Scripts/modules/nudge_list.R")
 source("../../Scripts/modules/nudge_accessible.R")
-source("../../Scripts/modules/nudge_metadata.R")
 source("../../Scripts/modules/load_gridnumbers.R")
-
-
 ```
 
 
@@ -463,14 +459,16 @@ If they then click on a point they could get some metadata about the layers that
 
 ```{r meta, warning=F}
 
-metadata <- nudge_metadata(nudges_df = thinned_nudges$nudges,
-                           access = final_acc_loc,
-                           buffer = 200)
+### CHANGE THIS ##
+
+metadata <- metadata_accessible(nudges_df = thinned_nudges$nudges,
+                                access = final_acc_loc,
+                                buffer = 200)
 metadata
 
-metadata_single <- nudge_metadata(nudges_df = thinned_nudges$nudges[3,],
-                                  access = final_acc_loc,
-                                  buffer = 200)
+metadata_single <- metadata_accessible(nudges_df = thinned_nudges$nudges[3,],
+                                       access = final_acc_loc,
+                                       buffer = 200)
 metadata_single
 
 ```
@@ -512,11 +510,11 @@ t_nt <- system.time(thinned_nudges <- nudge_thin(decide_raster = wall_m,
                                                  crs = 27700, 
                                                  buffer_distance = 1))
 
-t_md <- system.time(metadata <- nudge_metadata(nudges_df = thinned_nudges$nudges,
+t_md <- system.time(metadata <- metadata_accessible(nudges_df = thinned_nudges$nudges,
                                                access = final_acc_loc,
                                                buffer = 200))
 
-t_mds <- system.time(metadata_single <- nudge_metadata(nudges_df = thinned_nudges$nudges[1,],
+t_mds <- system.time(metadata_single <- metadata_accessible(nudges_df = thinned_nudges$nudges[1,],
                                                        access = final_acc_loc,
                                                        buffer = 200))
 
@@ -527,7 +525,7 @@ time_df <- rbind(t_nl, #t_ns,
   as.data.frame() 
 
 rownames(time_df) <- c('nudge_list', #'nudge_select', 
-'nudge_accessible', 'nudge_thin', 'nudge_metadata_all', 'nudge_metadata_single')
+'nudge_accessible', 'nudge_thin', 'metadata_accessible_all', 'metadata_accessible_single')
 
 time_df <- time_df %>% 
   rownames_to_column(var = 'Function')
@@ -537,5 +535,5 @@ time_df
 
 ```
 
-The total elapsed time for nudging and getting a single point's metadata is `r sum(time_df$elapsed[c(1:4,6)])`. 
+The total elapsed time for nudging and getting a single point's metadata is `r sum(time_df$elapsed[c(1:3,5)])`. 
 
