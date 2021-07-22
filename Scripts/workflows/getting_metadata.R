@@ -237,8 +237,13 @@ for(tax in taxa){
   print('cropping to GB')
   metadata_GB <- raster::mask(metadata, gb_mask[1])
   
+  # crop number of records to same extent as the species richness/uncertainty raster
+  nrecs_cropped <- raster::crop(number_records, metadata_GB)
+  
   # stack the records
-  metadata_GB <- raster::stack(number_records, metadata_GB)
+  metadata_GB <- raster::stack(nrecs_cropped, metadata_GB)
+  names(metadata_GB) <- c('number_records', 'spp_richness', 'mean_uncertainty')
+  metadata_GB
   
   # write out
   print('writing to file')
@@ -248,33 +253,13 @@ for(tax in taxa){
   
 }
 
+mths_meta <- raster::stack(paste0('Data/metadata/moth_recs_spprich_uncert_GB.grd'))
+mths_meta
 
+butt_meta <- raster::stack(paste0('Data/metadata/butterfly_recs_spprich_uncert_GB.grd'))
+butt_meta
 
-# # stack taxa counts and lcm
-# metadata_so_far <- raster::stack(lcm, raster::stack(recs_out))
-# plot(metadata_so_far[[1]])
-# any(is.na(values(metadata_so_far[[1]])))
-# 
-# 
-# 
-# ## mask
-# ## crop to GB
-# # download map GB
-# uk_map <- st_as_sf(getData("GADM", country = "GBR", level = 1, path='Data/environmental_data'))
-# uk_map <- st_transform(uk_map, 27700)
-# 
-# # remove nrothern ireland
-# gb_map <- uk_map[uk_map$NAME_1 != 'Northern Ireland',]
-# 
-# # convert to spatial for use in raster::mask()
-# gb_mask <- as_Spatial(gb_map)
-# 
-# # mask elevation
-# sum_preds_gb <- raster::mask(preds_lay, gb_mask[1])
-# plot(sum_preds_gb)
-# 
-# writeRaster(sum_preds_gb, filename = paste0('Data/metadata/', taxa, 'sum_prob_pres_GB.grd'),
-#             format = 'raster')
-
+plot(mths_meta)
+plot(butt_meta)
 
 
