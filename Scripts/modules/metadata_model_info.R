@@ -4,12 +4,12 @@
 # rast_obj <- raster::stack(paste0('Data/metadata/moth_recs_spprich_uncert_GB.grd'))
 
 
-metadata_raster <- function(rast_obj,  
-                            location, # location of the cell of interest
-                            crds_loc = 4326, # coords of the location
-                            crds_rast = 27700,
-                            buffer_distance = NULL,
-                            rounding = -1) # to match the resolution of the raster (-1 for 100m)
+metadata_model_info <- function(rast_obj,  
+                                location, # location of the cell of interest
+                                crds_loc = 4326, # coords of the location
+                                crds_rast = 27700,
+                                buffer_distance = 1000,
+                                rounding = -1) # to match the resolution of the raster (-1 for 100m)
 { 
   
   # first need to convert long lat to BNG
