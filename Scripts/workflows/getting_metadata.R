@@ -10,6 +10,8 @@ library(tidyverse)
 source('Scripts/modules/smooth_recording.R')
 source('Scripts/modules/count_records.R')
 source('Scripts/modules/metadata_lcm.R')
+source('Scripts/modules/metadata_species.R')
+source('Scripts/modules/metadata_model_info.R')
 
 # modal landcover
 lcm <- raster(list.files(pattern = 'lcm', 'Data/metadata/', full.names = T))
@@ -177,8 +179,18 @@ for(tax in taxa){
 mths_meta <- raster::stack(paste0('Data/metadata/moth_recs_spprich_uncert_GB.grd'))
 mths_meta
 
+t <- metadata_model_info(rast_obj = mths_meta,
+                    location = c(-2,54))
+
+
 butt_meta <- raster::stack(paste0('Data/metadata/butterfly_recs_spprich_uncert_GB.grd'))
 butt_meta
+
+metadata_model_info(rast_obj = mths_meta,
+                    location = c(-2,54),
+                    buffer_distance = 10)
+### returning too many numbers
+
 
 plot(mths_meta)
 plot(butt_meta)
