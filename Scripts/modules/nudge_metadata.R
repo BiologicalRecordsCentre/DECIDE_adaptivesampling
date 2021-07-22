@@ -1,3 +1,5 @@
+## DEPRICATED ##
+
 ## Get metadata associated with the access for each nudge
 
 ## INPUT: 
@@ -7,7 +9,6 @@
 # metadata_col_names - names of the columns or objects that we want returned for each of the accessible layers
 # if we add more layers or change any, this list will need to be updated
 
-
 nudge_metadata <- function(nudges_df,
                            access,
                            buffer = 200,
@@ -16,6 +17,8 @@ nudge_metadata <- function(nudges_df,
   
   # remove NULL items in list and get each layer buffered
   shapes_list <- lapply(access[lengths(access) != 0], FUN = function(x) (st_buffer(x, buffer)))
+  
+  ## Look at using st_is_within_distance
   
   # find which shapes each point is in and return their metadata for each point
   out_nudge <- lapply(1:dim(nudges_df)[1], FUN = function(n) {  # go through each point in turn
