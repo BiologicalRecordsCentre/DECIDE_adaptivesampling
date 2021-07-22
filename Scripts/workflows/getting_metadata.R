@@ -5,8 +5,13 @@ source('Scripts/modules/filter_distance.R')
 library(data.table)
 library(tidyverse)
 
+
+# number of records within the same moving window as the smoothing
+source('Scripts/modules/smooth_recording.R')
+source('Scripts/modules/count_records.R')
+
 # modal landcover
-lcm <- raster(list.files(pattern = 'lcm', 'Data/environmental_data/', full.names = T))
+lcm <- raster(list.files(pattern = 'lcm', 'Data/metadata/', full.names = T))
 lcm
 
 # data frame to match the land cover map to the lcm names
@@ -99,38 +104,35 @@ find_species <- function(location,
 
 
 # list of species recorded in the cell
-taxa = c('butterfly', 'moth')
+taxa = c('moth', 'butterfly')
 pseudoabs = 'PA_thinned_10000nAbs'
 
 recs_out <- list()
 
-for(i in taxa){
+for(tax in taxa){
   
-  if(i == 'moth') {
+  print(tax)
+  
+  if(tax == 'moth') {
     dfm_full <- fread("Data/species_data/moth/DayFlyingMoths_EastNorths_no_duplicates.csv")
-  } else if(i == 'butterfly'){
+  } else if(tax == 'butterfly'){
     dfm_full <- fread("Data/species_data/butterfly/butterfly_EastNorths_no_duplicates.csv")
   }
   
   
-  find_species(location = c(-1.097367, 51.604963),
-               records_df = dfm_full,
-               crds_loc = 4326,
-               crds_df = 27700,
-               buffer_distance = NULL,
-               rounding = -1,
-               name_col = 'sp_n')
+  # find_species(location = c(-1.097367, 51.604963),
+  #              records_df = dfm_full,
+  #              crds_loc = 4326,
+  #              crds_df = 27700,
+  #              buffer_distance = NULL,
+  #              rounding = -1,
+  #              name_col = 'sp_n')
   
   
-  # number of records within the same moving window as the smoothing
-  source('Scripts/modules/smooth_recording.R')
-  source('Scripts/modules/count_records.R')
-  
-  
-  cr <- count_records(records_df = dfm_full,
-                      template_raster = lcm,
-                      weight_by_time = FALSE)
-  plot(cr)
+  print('getting number of records')
+  number_records <- count_records(records_df = dfm_full,
+                                  template_raster = lcm,
+                                  weight_by_time = FALSE)
   
   # # no longer want to do a moving window summary
   # sm_matrix = matrix(c(0,    1, 1, 1,    0,
@@ -158,96 +160,121 @@ for(i in taxa){
   # recs_out[[i]] <- smoothed_effort
   # names(recs_out[[i]]) <- i
   
-  # save the counds in each cell
-  writeRaster(cr, filename = paste0('Data/metadata/',i,'_summed_records.grd'),
-              overwrite = TRUE)
+  # # save the counds in each cell
+  # writeRaster(cr, filename = paste0('Data/metadata/',tax,'_summed_records.grd'),
+  #             overwrite = TRUE)
   
+  
+  
+  ### species-level uncertainty and probability of presence
+  model_locs <- paste0('/data-s3/thoval/sdm_outputs/', tax, '/combined_model_outputs/', pseudoabs)
+  
+  names <- gsub(pattern = '_PA_thinned_10000nAbs_weightedmeanensemble.grd', replacement = '', 
+                list.files(model_locs, 
+                           pattern='_weightedmeanensemble.grd'))
+  
+  # sdm outputs for each species
+  species_stack <- list()
+  
+  # error outputs
+  error_out <- list()
+  
+  print('loading rasters from object store')
+  
+  for(i in 1:length(names)){
+    
+    print(names[i])
+    
+    # initiate model list within for loop so that it gets replaced when starting a new species
+    # otherwise we might get some weird overlaps
+    
+    # mean predictions
+    mp <- list.files(model_locs, 
+                     pattern = paste0(names[i], "_", pseudoabs, "_weightedmeanensemble.grd"),
+                     full.names = TRUE)
+    
+    mod_preds <- raster::stack(mp)
+    names(mod_preds) <- paste0(names[i], '_mean_pred')
+    
+    # quantile range
+    qr <- list.files(model_locs, 
+                     pattern = paste0(names[i], "_", pseudoabs, "_rangeensemblequantiles.grd"),
+                     full.names = TRUE)
+    
+    qrnge <- raster::stack(qr)
+    names(qrnge) <- paste0(names[i], '_quantile_range')
+    
+    species_stack[[i]] <- raster::stack(mod_preds, qrnge)
+    
+  }
+  
+  
+  # species richness
+  print('calculating species richness')
+  spp_richness <- round(sum(stack(lapply(species_stack, FUN = function(x) subset(x, grep(pattern = 'mean_pred',
+                                                                                         names(x)))))))
+  
+  # uncertainty score
+  print('calculating mean uncertainty')
+  uncertainty <- mean(stack(lapply(species_stack, FUN = function(x) subset(x, grep(pattern = 'quantile_range',
+                                                                                   names(x))))))
+  
+  metadata <- raster::stack(spp_richness, uncertainty)
+  
+  ## mask
+  ## crop to GB
+  # download map GB
+  uk_map <- st_as_sf(getData("GADM", country = "GBR", level = 1, path='Data/environmental_data'))
+  uk_map <- st_transform(uk_map, 27700)
+  
+  # remove nrothern ireland
+  gb_map <- uk_map[uk_map$NAME_1 != 'Northern Ireland',]
+  
+  # convert to spatial for use in raster::mask()
+  gb_mask <- as_Spatial(gb_map)
+  
+  # crop to GB
+  print('cropping to GB')
+  metadata_GB <- raster::mask(metadata, gb_mask[1])
+  
+  # stack the records
+  metadata_GB <- raster::stack(number_records, metadata_GB)
+  
+  # write out
+  print('writing to file')
+  writeRaster(metadata_GB, filename = paste0('Data/metadata/', tax, '_recs_spprich_uncert_GB.grd'),
+              format = 'raster')
   
   
 }
 
-# stack taxa counts and lcm
-metadata_so_far <- raster::stack(lcm, raster::stack(recs_out))
-plot(metadata_so_far[[1]])
-any(is.na(values(metadata_so_far[[1]])))
 
 
-# species-level uncertainty
+# # stack taxa counts and lcm
+# metadata_so_far <- raster::stack(lcm, raster::stack(recs_out))
+# plot(metadata_so_far[[1]])
+# any(is.na(values(metadata_so_far[[1]])))
+# 
+# 
+# 
+# ## mask
+# ## crop to GB
+# # download map GB
+# uk_map <- st_as_sf(getData("GADM", country = "GBR", level = 1, path='Data/environmental_data'))
+# uk_map <- st_transform(uk_map, 27700)
+# 
+# # remove nrothern ireland
+# gb_map <- uk_map[uk_map$NAME_1 != 'Northern Ireland',]
+# 
+# # convert to spatial for use in raster::mask()
+# gb_mask <- as_Spatial(gb_map)
+# 
+# # mask elevation
+# sum_preds_gb <- raster::mask(preds_lay, gb_mask[1])
+# plot(sum_preds_gb)
+# 
+# writeRaster(sum_preds_gb, filename = paste0('Data/metadata/', taxa, 'sum_prob_pres_GB.grd'),
+#             format = 'raster')
 
-taxa = 'moth'
-
-
-model_locs <- paste0('/data-s3/thoval/sdm_outputs/', taxa, '/combined_model_outputs/', pseudoabs)
-
-names <- gsub(pattern = '_PA_thinned_10000nAbs_weightedmeanensemble.grd', replacement = '', 
-              list.files(model_locs, 
-                         pattern='_weightedmeanensemble.grd'))
-
-# sdm outputs for each species
-species_stack <- list()
-
-# error outputs
-error_out <- list()
-
-for(i in 1:length(names)){
-  
-  print(names[i])
-  
-  # initiate model list within for loop so that it gets replaced when starting a new species
-  # otherwise we might get some weird overlaps
-  
-  # mean predictions
-  mp <- list.files(model_locs, 
-                   pattern = paste0(names[i], "_", pseudoabs, "_weightedmeanensemble.grd"),
-                   full.names = TRUE)
-  
-  mod_preds <- raster::stack(mp)
-  names(mod_preds) <- paste0(names[i], '_mean_pred')
-  
-  # quantile range
-  qr <- list.files(model_locs, 
-                   pattern = paste0(names[i], "_", pseudoabs, "_rangeensemblequantiles.grd"),
-                   full.names = TRUE)
-  
-  qrnge <- raster::stack(qr)
-  names(qrnge) <- paste0(names[i], '_quantile_range')
-  
-  species_stack[[i]] <- raster::stack(mod_preds, qrnge)
-  
-}
-
-
-# species richness
-preds_lay <- round(sum(stack(lapply(species_stack, FUN = function(x) subset(x, grep(pattern = 'mean_pred',
-                                                                                    names(x)))))))
-
-## mask
-## crop to GB
-# download map GB
-uk_map <- st_as_sf(getData("GADM", country = "GBR", level = 1, path='Data/environmental_data'))
-uk_map <- st_transform(uk_map, 27700)
-
-# remove nrothern ireland
-gb_map <- uk_map[uk_map$NAME_1 != 'Northern Ireland',]
-
-# convert to spatial for use in raster::mask()
-gb_mask <- as_Spatial(gb_map)
-
-# mask elevation
-sum_preds_gb <- raster::mask(preds_lay, gb_mask[1])
-plot(sum_preds_gb)
-
-writeRaster(sum_preds_gb, filename = paste0('Data/metadata/', taxa, 'sum_prob_pres_GB.grd'),
-            format = 'raster')
-
-
-# uncertainty score
-preds_lay <- mean(stack(lapply(species_stack, FUN = function(x) subset(x, grep(pattern = 'quantile_range',
-                                                                               names(x))))))
-
-
-
-## this doesn't work - R crashes. Too big?
-pquant <- lapply(preds, FUN = function(x) tdigest::tquantile(tdigest::tdigest(na.omit(values(x))), probs = 0.8))
 
 
