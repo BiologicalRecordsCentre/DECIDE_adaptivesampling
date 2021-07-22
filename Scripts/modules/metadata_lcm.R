@@ -1,6 +1,11 @@
 
 # get the values of the land cover map
 # at a point or in a buffered region
+# # modal landcover
+# lcm <- raster(list.files(pattern = 'lcm', 'Data/metadata/', full.names = T))
+# lcm
+
+
 
 # data frame to match the land cover map to the lcm names
 lcm_names <- data.frame(index = 1:21,
