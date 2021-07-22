@@ -38,9 +38,11 @@ nudge_thin <- function(decide_raster, # the original raster layer
     spat_nudge <- nudge_df
     
     # include this for plotting later so don't have to use an if() statement in the ggplot
+    XY_n <- st_coordinates(nudge_df)
+    
     orig_nudges <- nudge_df %>%
-      mutate(lon = unlist(map(nudge_df$geometry,1)),
-             lat = unlist(map(nudge_df$geometry,2))) %>%
+      mutate(lon = XY_n[,'X'],
+             lat = XY_n[,'Y']) %>%
       as.data.frame()
     
     warning('! if plot looks wrong, check to make sure that coordinates in sf geometry column are in order c(lon, lat)')
