@@ -37,27 +37,52 @@ nudge_accessible <- function(nudges_df,
     
     access_layers_sub <- access_layers_sub[[1]]
     
-    # if one layer, buffer it
-    shapes <- st_union(st_buffer(access_layers_sub, buffer))
+    # see which points are close
+    int_ids <- st_is_within_distance(nudges_df,
+                                      access_layers_sub,
+                                      dist = buffer,
+                                      sparse = FALSE)
+    
+    # See which points are close to any of the features
+    int_id_l <- apply(X = int_ids_c,
+                      MARGIN = 1,
+                      FUN = any)
+    
     
   } else if(class(access_layers_sub)[1]=='list' && length(access_layers_sub)>1){ # a list of multiple sf objects
     
     ## add error code to check the class of each item in list
     
-    # get each layer buffered
-    shapes_list <- lapply(access_layers_sub, FUN = function(x) (st_union(st_buffer(x, buffer))))
+    # # get each layer buffered
+    # shapes_list <- lapply(access_layers_sub, FUN = function(x) (st_union(st_buffer(x, buffer))))
     
-    # combine the first two list objects; st_union only accepts two objects
-    ## !! make this BETTER!! So hacky!! !! ##
-    shapes <- st_union(shapes_list[[1]], shapes_list[[2]])
+    # across all layers see which points are close
+    int_ids <- lapply(access_layers_sub,
+                      FUN = function(x) st_is_within_distance(nudges_df,
+                                                              x,
+                                                              dist = buffer,
+                                                              sparse = FALSE))
+    # bring layer results together
+    int_ids_c <- do.call(cbind, int_ids)
     
-    # use a for loop to combine the other ones if the length of shape > 2
-    if(length(shapes_list)>2) for(i in 3:length(shapes_list)){ shapes <- st_union(shapes, shapes_list[[i]]) }
-    
+    # See which points are close to any of the features
+    int_id_l <- apply(X = int_ids_c,
+                      MARGIN = 1,
+                      FUN = any)
+  
   } else if(class(access_layers_sub)[1]=='sf'){ # a single sf object
     
-    # if one layer, buffer it
-    shapes <- st_union(st_buffer(access_layers_sub, buffer))
+    # see which points are close
+    int_ids <- st_is_within_distance(nudges_df,
+                                     access_layers_sub,
+                                     dist = buffer,
+                                     sparse = FALSE)
+    
+    # See which points are close to any of the features
+    int_id_l <- apply(X = int_ids_c,
+                      MARGIN = 1,
+                      FUN = any)
+    
     
   } else {
     
@@ -65,9 +90,7 @@ nudge_accessible <- function(nudges_df,
     
   }
   
-  # find the points that fall within the buffered shapes
-  int_ind <- st_within(nudges_df, shapes, sparse = FALSE)
-  int_nudge <- nudges_df[int_ind,]
+  int_nudge <- nudges_df[int_id_l,]
   
   if(dim(int_nudge)[1]==0){
     
@@ -85,30 +108,37 @@ nudge_accessible <- function(nudges_df,
   # print(plot(st_geometry(nudges_df), add = T, pch=20)) 
   # print(plot(st_geometry(int_nudge), col = 'red', add = T, pch = 20))
   
-  # ggplot
-  p <- ggplot() +
-    geom_sf(data=shapes, aes(colour = 'Buffered accessible\nareas'), fill = NA) +
-    theme_bw() 
   
-  for(pls in 1:length(access_layers_sub)){
+  if(plot == T){
     
-    if(dim(access_layers_sub[[pls]])[1]==0) next
+    # ggplot
+    p <- ggplot() +
+      # geom_sf(data=shapes, aes(colour = 'Buffered accessible\nareas'), fill = NA) +
+      theme_bw() 
     
-    p <- p + 
-      geom_sf(data=access_layers_sub[[pls]], aes(colour = 'Accessible areas', fill = 'Accessible areas'))
+    for(pls in 1:length(access_layers_sub)){
+      
+      if(dim(access_layers_sub[[pls]])[1]==0) next
+      
+      p <- p + 
+        geom_sf(data=access_layers_sub[[pls]], aes(colour = 'Accessible areas', fill = 'Accessible areas'))
+    }
+    
+    p <- p +
+      geom_sf(data = int_nudge, aes(colour = 'Nudges within\nbuffered area'), cex = 2) + 
+      geom_sf(data = nudges_df, aes(colour = 'Original nudges'), cex = 1) +
+      scale_colour_manual(name = '', values = c('green3', 'green4', 
+                                                'red', 'black')) +
+      scale_fill_manual(values = 'green3') +
+      guides(fill = FALSE)
+    
+    print(p)
+    
+    return(list(nudges = int_nudge,
+                plot = p))
+  } else {
+    return(list(nudges = int_nudge))
   }
-  
-  p <- p +
-    geom_sf(data = int_nudge, aes(colour = 'Nudges within\nbuffered area'), cex = 2) + 
-    geom_sf(data = nudges_df, aes(colour = 'Original nudges'), cex = 1) +
-    scale_colour_manual(name = '', values = c('green3', 'green4', 
-                                              'red', 'black')) +
-    scale_fill_manual(values = 'green3') +
-    guides(fill = FALSE)
-  
-  if(plot == T) print(p)
-  
-  return(list(nudges = int_nudge,
-              plot = p))
+
   
 }
