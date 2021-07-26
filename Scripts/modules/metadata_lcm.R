@@ -21,7 +21,7 @@ find_lcm_features <- function(rast_obj, # raster of land cover classes or data f
                               crds_loc = 4326, # coords of the location
                               crds_obj = 27700, # coords of the raster 
                               buffer_distance = 10000, # return land cover within a buffer distance from the cell of interest
-                              rounding = -1){
+                              rounding = -2){
   
   # first need to convert long lat to BNG
   dat_sf <- st_sf(st_sfc(st_point(location)), crs = crds_loc) # load location points, convert to spatial lat/lon

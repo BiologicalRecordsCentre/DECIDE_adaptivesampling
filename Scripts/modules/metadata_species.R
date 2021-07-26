@@ -7,7 +7,7 @@ metadata_species <- function(location,
                              crds_loc = 4326, # coordinates of the location vector
                              crds_df = 27700, # coordinates of the data frame
                              buffer_distance = NULL,
-                             rounding = -1, # rounding to match the transformed coordinates to the data frame. -1 is 100m resolution
+                             rounding = -2, # rounding to match the transformed coordinates to the data frame. -1 is 100m resolution
                              name_col){ # the name of the column in records_df that you want returned
   
   # convert to data.frame

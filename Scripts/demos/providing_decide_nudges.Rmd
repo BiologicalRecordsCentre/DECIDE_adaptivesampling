@@ -131,7 +131,7 @@ Here is a new data frame of weighted nudges from above and below the 90th percen
 
 # get a list of potential nudge locations
 nudges <- nudge_list(wall_m,
-                     n=100,
+                     n=500,
                      # prop = 0.01,
                      cutoff_value = 0.9, 
                      cutoff = FALSE,
