@@ -236,6 +236,25 @@ grid_numbers <- load_gridnumbers(location = location,
   wild <- "/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/raw_data/Scotland/wildland_scotland/gridded_data_10km/"
 }
 
+# # Convert all shape files to RDS files
+# for(dir in c(wild, nat_sites, cons_sites, tross, cairn,
+#              pub_acc, core_paths, lond_path_loc, nat_trust_loc,
+#              access_land_loc, accspnt_loc, grnspc_loc, prow_loc)){
+#   
+#   cat(paste('####', dir, '\n\n'))
+#   shp_files <- list.files(dir,
+#                           pattern = '.shp$',
+#                           full.names = TRUE)
+#   
+#   for(file in shp_files){
+#     cat(basename(file), '\n')
+#     x <- sf::st_read(file, quiet = TRUE)
+#     st_crs(x) <- 27700
+#     saveRDS(x, file = gsub('.shp$', '.rds', file),
+#             compress = FALSE)
+#   }
+# }
+
 # extract shapes for location of interest
 system.time(
   acc_loc <- lapply(c(1:length(grid_numbers)), FUN = function(n){
@@ -245,61 +264,55 @@ system.time(
     # prow .shp
     prow_files <- list.files(prow_loc,
                              full.names = T,
-                             pattern = paste0('_', grid_numbers[n], '.shp'))
+                             pattern = paste0('_', grid_numbers[n], '.rds'))
     
     if(length(prow_files) != 0) {
-      prow <- sf::st_read(prow_files, quiet = TRUE)
-      st_crs(prow) <- 27700
+      prow <- readRDS(prow_files)
     } else { prow <- NULL }
     
     # greenspaces .shp
     grnspc_files <- list.files(grnspc_loc,
                                full.names = T,
-                               pattern = paste0('_', grid_numbers[n], '.shp'))
+                               pattern = paste0('_', grid_numbers[n], '.rds'))
     
     if(length(grnspc_files) != 0){
-      grnspc <- sf::st_read(grnspc_files, quiet = TRUE)
-      st_crs(grnspc) <- 27700
+      grnspc <- readRDS(grnspc_files)
     } else { grnspc <- NULL }
     
     # access points .shp
     accs_files <- list.files(accspnt_loc,
                              full.names = T,
-                             pattern = paste0('_', grid_numbers[n], '.shp'))
+                             pattern = paste0('_', grid_numbers[n], '.rds'))
     
     if(length(accs_files) != 0){
-      accspnt <- sf::st_read(accs_files, quiet = TRUE)
-      st_crs(accspnt) <- 27700
+      accspnt <- readRDS(accs_files)
     } else{ accspnt <- NULL }
     
     # access land .shp
     accslnd_files <- list.files(access_land_loc,
                                 full.names = T,
-                                pattern = paste0('_', grid_numbers[n], '.shp'))
+                                pattern = paste0('_', grid_numbers[n], '.rds'))
     
     if(length(accslnd_files) != 0){
-      accslnd <- sf::st_read(accslnd_files, quiet = TRUE)
-      st_crs(accslnd) <- 27700
+      accslnd <- readRDS(accslnd_files)
     } else { accslnd <- NULL }
     
     # national trust .shp
     national_trust_files <- list.files(nat_trust_loc,
                                        full.names = T,
-                                       pattern = paste0('_', grid_numbers[n], '.shp'))
+                                       pattern = paste0('_', grid_numbers[n], '.rds'))
     
     if(length(national_trust_files) != 0){
-      national_trust <- sf::st_read(national_trust_files, quiet = TRUE)
-      st_crs(national_trust) <- 27700
+      national_trust <- readRDS(national_trust_files)
     } else { national_trust <- NULL }
     
     # london shapes .shp
     london_files <- list.files(lond_path_loc,
                                full.names = T,
-                               pattern = paste0('_', grid_numbers[n], '.shp'))
+                               pattern = paste0('_', grid_numbers[n], '.rds'))
     
     if(length(london_files) != 0){
-      london_paths <- sf::st_read(london_files, quiet = TRUE)
-      st_crs(london_paths) <- 27700
+      london_paths <- readRDS(london_files)
     } else { london_paths <- NULL }
     
     
@@ -308,11 +321,10 @@ system.time(
     # core paths
     cp_files <- list.files(core_paths,
                            full.names = T,
-                           pattern = paste0('_', grid_numbers[n], '.shp'))
+                           pattern = paste0('_', grid_numbers[n], '.rds'))
     
     if(length(cp_files) != 0){
-      c_paths <- sf::st_read(cp_files, quiet = TRUE)
-      st_crs(c_paths) <- 27700
+      c_paths <- readRDS(cp_files)
     } else { c_paths <- NULL }
     
     
@@ -320,21 +332,19 @@ system.time(
     # paths
     pacc_path_files <- list.files(pub_acc,
                                   full.names = T,
-                                  pattern = paste0('paths_gridnumber_', grid_numbers[n], '.shp'))
+                                  pattern = paste0('paths_gridnumber_', grid_numbers[n], '.rds'))
     
     if(length(pacc_path_files) != 0){
-      pacc_paths <- sf::st_read(pacc_path_files, quiet = TRUE)
-      st_crs(pacc_paths) <- 27700
+      pacc_paths <- readRDS(pacc_path_files)
     } else { pacc_paths <- NULL }
     
     # woods
     pacc_wood_files <- list.files(pub_acc,
                                   full.names = T,
-                                  pattern = paste0('wood_gridnumber_', grid_numbers[n], '.shp'))
+                                  pattern = paste0('wood_gridnumber_', grid_numbers[n], '.rds'))
     
     if(length(pacc_wood_files) != 0){
-      pacc_wood <- sf::st_read(pacc_wood_files, quiet = TRUE)
-      st_crs(pacc_wood) <- 27700
+      pacc_wood <- readRDS(pacc_wood_files)
     } else { pacc_wood <- NULL }
     
     
@@ -342,55 +352,50 @@ system.time(
     # cairngorm
     cairn_files <- list.files(cairn,
                               full.names = T,
-                              pattern = paste0('_', grid_numbers[n], '.shp'))
+                              pattern = paste0('_', grid_numbers[n], '.rds'))
     
     if(length(cairn_files) != 0){
-      cairn_shp <- sf::st_read(cairn_files, quiet = TRUE)
-      st_crs(cairn_shp) <- 27700
+      cairn_shp <- readRDS(cairn_files)
     } else { cairn_shp <- NULL }
     
     
     # trossacks
     tross_files <- list.files(tross,
                               full.names = T,
-                              pattern = paste0('_', grid_numbers[n], '.shp'))
+                              pattern = paste0('_', grid_numbers[n], '.rds'))
     
     if(length(tross_files) != 0){
-      tross_shp <- sf::st_read(tross_files, quiet = TRUE)
-      st_crs(tross_shp) <- 27700
+      tross_shp <- readRDS(tross_files)
     } else { tross_shp <- NULL }
     
     
     # conservation sites
     cons_files <- list.files(cons_sites,
                              full.names = T,
-                             pattern = paste0('_', grid_numbers[n], '.shp'))
+                             pattern = paste0('_', grid_numbers[n], '.rds'))
     
     if(length(cons_files) != 0){
-      cons_shp <- sf::st_read(cons_files, quiet = TRUE)
-      st_crs(cons_shp) <- 27700
+      cons_shp <- readRDS(cons_files)
     } else { cons_shp <- NULL }
     
     
     # natural conservation sites
     nat_files <- list.files(nat_sites,
                             full.names = T,
-                            pattern = paste0('_', grid_numbers[n], '.shp'))
+                            pattern = paste0('_', grid_numbers[n], '.rds'))
     
     if(length(nat_files) != 0){
-      nat_shp <- sf::st_read(nat_files, quiet = TRUE)
-      st_crs(nat_shp) <- 27700
+      nat_shp <- readRDS(nat_files)
     } else { nat_shp <- NULL }
     
     
     # wildland sites
     wild_files <- list.files(wild,
                              full.names = T,
-                             pattern = paste0('_', grid_numbers[n], '.shp'))
+                             pattern = paste0('_', grid_numbers[n], '.rds'))
     
     if(length(wild_files) != 0){
-      wild_shp <- sf::st_read(wild_files, quiet = TRUE)
-      st_crs(wild_shp) <- 27700
+      wild_shp <- readRDS(wild_files)
     } else { wild_shp <- NULL }
     
     return(list(prow, grnspc, accspnt, accslnd, national_trust, london_paths, ## england
