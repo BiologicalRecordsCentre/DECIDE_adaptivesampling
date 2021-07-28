@@ -1,4 +1,5 @@
-
+# reprojecting raster data for DECIDE WP1 because my own computer was being stupid
+# not important for DECIDE WP2
 
 # unzip(zipfile = '/data/notebooks/rstudio-vizz/data/elevation/Copernicus_Elevation.zip', 
 #       exdir = '/data/notebooks/rstudio-vizz/data/elevation/')
@@ -35,3 +36,28 @@ plot(elev_100_crop)
 lcm <- raster("/data/notebooks/rstudio-setupconsthomas/DECIDE_constraintlayers/Data/environmental_data/100mRastOneLayer.grd")
 
 elev_proj <- raster::projectRaster(elev_100_crop, lcm)
+elev_proj
+plot(elev_proj)
+
+## crop to GB
+# download map GB
+uk_map <- st_as_sf(getData("GADM", country = "GBR", level = 1, path='Data/environmental_data'))
+uk_map <- st_transform(uk_map, 27700)
+
+# remove nrothern ireland
+gb_map <- uk_map[uk_map$NAME_1 != 'Northern Ireland',]
+
+# check
+plot(st_geometry(gb_map))
+
+# convert to spatial for use in raster::mask()
+gb_mask <- as_Spatial(gb_map)
+gb_mask
+
+# mask elevation
+m_gb <- raster::mask(elev_proj, gb_mask[1])
+
+plot(m_gb, xlim = c(330000, 360000), ylim = c(440000, 470000))
+
+writeRaster(m_gb, filename = 'Data/environmental_data/elevation_map_coasts_fixed_GB_100m.tiff')
+
