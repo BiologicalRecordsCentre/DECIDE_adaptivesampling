@@ -21,6 +21,7 @@ source("../../Scripts/modules/nudge_select.R")
 source("../../Scripts/modules/nudge_list.R")
 source("../../Scripts/modules/nudge_accessible.R")
 source("../../Scripts/modules/load_gridnumbers.R")
+
 ```
 
 
@@ -134,7 +135,7 @@ nudges <- nudge_list(wall_m,
                      cutoff = FALSE,
                      weight = TRUE,
                      weighting_column = 'decide score',
-                     weight_inflation = 10)
+                     weight_inflation = 20)
 head(nudges)
 
 
@@ -433,7 +434,7 @@ thinned_nudges <- nudge_thin(decide_raster = wall_m,
                              lon = 'lon',
                              lat = 'lat',
                              crs = 27700, 
-                             buffer_distance = 1,
+                             buffer_distance = 0.5,
                              plot = TRUE)
 ```
 
