@@ -43,8 +43,6 @@ system.time(metadata_species(location = c(-2.784492, 54.024851),
                              rounding = -2, # rounding to match the transformed coordinates to the data frame. -2 is 100m resolution
                              name_col = 'com_name'))
 
-
-
 # butterfly
 system.time(but_full <- readRDS('Data/species_data/butterfly/butterfly_records_by_100m.rds'))
 
@@ -102,6 +100,7 @@ points(x=trecs$lon, y=trecs$lat)
 
 # For loop to get the species richness, uncertainty and number of records in 
 # a cell for each taxa
+
 
 ## Only ran once!
 # taxa = c('moth', 'butterfly')
@@ -252,5 +251,3 @@ points(x=trecs$lon, y=trecs$lat)
 #   
 #   
 # }
-
-
