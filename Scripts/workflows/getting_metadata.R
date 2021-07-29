@@ -13,6 +13,7 @@ source('Scripts/modules/metadata_lcm.R')
 source('Scripts/modules/metadata_species.R')
 source('Scripts/modules/metadata_model_info.R')
 source('Scripts/modules/convert_raster.R')
+source('Scripts/modules/crop_records.R')
 
 
 ## Get the modal landcover for a location and surrounding locations
@@ -20,51 +21,88 @@ lcm <- raster(list.files(pattern = 'lcm', 'Data/metadata/', full.names = T))
 # lcm
 
 
-l <- find_lcm_features(rast_obj = lcm, # raster of land cover classes or data frame with associated factor levels
-                       # name_df = lcm_names, # data frame with names corresponding to the raster layer; has a default
-                       location = c(-2.784492, 54.024851),
-                       crds_loc = 4326,
-                       crds_obj = 27700,
-                       buffer_distance = 200)
+system.time(l <- find_lcm_features(rast_obj = lcm, # raster of land cover classes or data frame with associated factor levels
+                                   # name_df = lcm_names, # data frame with names corresponding to the raster layer; has a default
+                                   location = c(-2.784492, 54.024851),
+                                   crds_loc = 4326,
+                                   crds_obj = 27700,
+                                   buffer_distance = 200))
 
 l
 
 
 # get the species in a location
 # moths
-dfm_full <- fread("Data/species_data/moth/DayFlyingMoths_EastNorths_no_duplicates.csv")
+system.time(dfm_full <- readRDS('Data/species_data/moth/moth_records_by_100m.rds'))
 
-metadata_species(location = c(-2.784492, 54.024851),
-                 records_df = dfm_full, # records to find species in
-                 crds_loc = 4326, # coordinates of the location vector
-                 crds_df = 27700, # coordinates of the data frame
-                 buffer_distance = 200,
-                 rounding = -1, # rounding to match the transformed coordinates to the data frame. -1 is 100m resolution
-                 name_col = 'com_n')
-
-
+system.time(metadata_species(location = c(-2.784492, 54.024851),
+                             records_df = dfm_full, # records to find species in
+                             crds_loc = 4326, # coordinates of the location vector
+                             crds_df = 27700, # coordinates of the data frame
+                             buffer_distance = 1000,
+                             rounding = -2, # rounding to match the transformed coordinates to the data frame. -2 is 100m resolution
+                             name_col = 'com_name'))
 
 # butterfly
-but_full <- fread("Data/species_data/butterfly/butterfly_EastNorths_no_duplicates.csv") %>% 
-  mutate(thinned_id = paste(sp_n, com_n, lon, lat))
+system.time(but_full <- readRDS('Data/species_data/butterfly/butterfly_records_by_100m.rds'))
 
-but_full <- but_full[!duplicated(but_full$thinned_id),] # thin to only one record in a cell
-
-metadata_species(location = c(-2.784492, 54.024851),
-                 records_df = but_full, # records to find species in
-                 crds_loc = 4326, # coordinates of the location vector
-                 crds_df = 27700, # coordinates of the data frame
-                 buffer_distance = 200,
-                 rounding = -2, # rounding to match the transformed coordinates to the data frame. -2 is 100m resolution
-                 name_col = 'com_n')
+system.time(ms <- metadata_species(location = c(-0.923064, 53.636324),
+                                   records_df = but_full, # records to find species in
+                                   crds_loc = 4326, # coordinates of the location vector
+                                   crds_df = 27700, # coordinates of the data frame
+                                   buffer_distance = 1000,
+                                   rounding = -2, # rounding to match the transformed coordinates to the data frame. -2 is 100m resolution
+                                   name_col = 'com_name'))
+ms
 
 
+# get species richness, uncertainty and number of records
+mths_meta <- raster::stack(paste0('Data/metadata/moth_recs_spprich_uncert_GB.grd'))
+mths_meta
 
+system.time(mm <- metadata_model_info(rast_obj = mths_meta,
+                                      location = c(-0.923064, 53.636324),
+                                      crds_loc = 4326, # coords of the location
+                                      crds_rast = 27700,
+                                      buffer_distance = 1000,
+                                      rounding = -2))
+mm
+
+# % difference between central point uncertainty and surrounding cells
+mm$central_loc$mean_uncertainty/mean(mm$buffered_area$mean_uncertainty)*100
+
+butt_meta <- raster::stack(paste0('Data/metadata/butterfly_recs_spprich_uncert_GB.grd'))
+butt_meta
+
+system.time(mb <- metadata_model_info(rast_obj = butt_meta,
+                                      location = c(-0.923064, 53.636324),
+                                      crds_loc = 4326, # coords of the location
+                                      crds_rast = 27700,
+                                      buffer_distance = 1000,
+                                      rounding = -2))
+mb
+
+
+mb$central_loc$mean_uncertainty/mean(mb$buffered_area$mean_uncertainty)*100
+
+plot(butt_meta)
+
+
+## Checking what records in hadfield moors
+bt_dist <- filter_distance(butt_meta,
+                           location = c(-0.934342, 53.549085),
+                           distance = 5000)
+plot(bt_dist$mean_uncertainty)
+
+trecs <- crop_records(bt_dist,
+                      but_full)
+points(x=trecs$lon, y=trecs$lat)
 
 # For loop to get the species richness, uncertainty and number of records in 
 # a cell for each taxa
 
-## Only need to run once!
+
+## Only ran once!
 # taxa = c('moth', 'butterfly')
 # pseudoabs = 'PA_thinned_10000nAbs'
 # 
@@ -213,33 +251,3 @@ metadata_species(location = c(-2.784492, 54.024851),
 #   
 #   
 # }
-
-mths_meta <- raster::stack(paste0('Data/metadata/moth_recs_spprich_uncert_GB.grd'))
-mths_meta
-
-mm <- metadata_model_info(rast_obj = mths_meta,
-                          location = c(-2.345,54.3453),
-                          crds_loc = 4326, # coords of the location
-                          crds_rast = 27700,
-                          buffer_distance = 200,
-                          rounding = -2)
-
-# % difference between central point uncertainty and surrounding cells
-mm$central_loc$mean_uncertainty/mean(mm$buffered_area$mean_uncertainty)*100
-
-butt_meta <- raster::stack(paste0('Data/metadata/butterfly_recs_spprich_uncert_GB.grd'))
-butt_meta
-
-mb <- metadata_model_info(rast_obj = butt_meta,
-                          location = c(-2.345,54.3453),
-                          crds_loc = 4326, # coords of the location
-                          crds_rast = 27700,
-                          buffer_distance = 100,
-                          rounding = -2)
-
-### returning too many numbers
-mb$central_loc$mean_uncertainty/mean(mb$buffered_area$mean_uncertainty)*100
-
-plot(butt_meta)
-
-
