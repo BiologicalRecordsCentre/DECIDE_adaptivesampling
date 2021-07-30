@@ -7,7 +7,6 @@ library(tidyverse)
 
 
 # number of records within the same moving window as the smoothing
-source('Scripts/modules/smooth_recording.R')
 source('Scripts/modules/count_records.R')
 source('Scripts/modules/metadata_lcm.R')
 source('Scripts/modules/metadata_species.R')
@@ -33,7 +32,7 @@ l
 
 # get the species in a location
 # moths
-system.time(dfm_full <- readRDS('Data/species_data/moth/moth_records_by_100m.rds'))
+system.time(dfm_full <- readRDS('Data/metadata/moth_records_by_100m.rds'))
 
 system.time(metadata_species(location = c(-2.784492, 54.024851),
                              records_df = dfm_full, # records to find species in
@@ -46,7 +45,7 @@ system.time(metadata_species(location = c(-2.784492, 54.024851),
 
 
 # butterfly
-system.time(but_full <- readRDS('Data/species_data/butterfly/butterfly_records_by_100m.rds'))
+system.time(but_full <- readRDS('Data/metadata/butterfly_records_by_100m.rds'))
 
 system.time(ms <- metadata_species(location = c(-0.923064, 53.636324),
                                    records_df = but_full, # records to find species in
