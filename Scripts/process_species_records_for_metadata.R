@@ -22,7 +22,7 @@ mf <- dfm_full %>%
             latin_name = paste0(unique(sp_n), collapse = ', '))
 
 # # save
-# saveRDS(mf, file = 'Data/species_data/moth/moth_records_by_100m.rds')
+# saveRDS(mf, file = 'Data/metadata/moth_records_by_100m.rds')
 
 # testing
 system.time(mf2 <- readRDS('Data/species_data/moth/moth_records_by_100m.rds'))
@@ -47,7 +47,7 @@ bf <- but_full %>%
             latin_name = paste0(unique(sp_n), collapse = ', '))
 
 # # save
-# saveRDS(bf, file = 'Data/species_data/butterfly/butterfly_records_by_100m.rds')
+# saveRDS(bf, file = 'Data/metadata/butterfly_records_by_100m.rds')
 
 # testing
 system.time(bf2 <- readRDS('Data/species_data/butterfly/butterfly_records_by_100m.rds'))
