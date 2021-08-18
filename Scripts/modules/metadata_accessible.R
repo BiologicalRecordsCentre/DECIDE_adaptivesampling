@@ -16,6 +16,9 @@ metadata_accessible <- function(nudges_df,
   # remove NULL items in list
   access <- access[lengths(access) != 0]  
   
+  # change access layer name to 'open access' for Rich
+  for(x in 1:length(access)){ if(any(colnames(access[[x]]) %in% 'Descrip')) {access[[x]]$Descrip <- 'Access land' }}
+  
   # Go throught each features layer in turn...
   l_feat <- lapply(access, function(x){
     

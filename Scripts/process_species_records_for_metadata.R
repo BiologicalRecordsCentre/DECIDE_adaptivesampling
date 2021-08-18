@@ -27,7 +27,13 @@ mf <- dfm_full %>%
 # testing
 system.time(mf2 <- readRDS('Data/species_data/moth/moth_records_by_100m.rds'))
 
-
+# get the list of unique species
+mth_list <- dfm_full %>% 
+  dplyr::select(com_n, sp_n) %>% 
+  distinct() %>% 
+  arrange(sp_n) %>% 
+  mutate(taxa = 'Day flying moth')
+mth_list
 
 # butterfly
 but_full <- fread("Data/species_data/butterfly/butterfly_EastNorths_no_duplicates.csv") %>% 
@@ -51,3 +57,15 @@ bf <- but_full %>%
 
 # testing
 system.time(bf2 <- readRDS('Data/species_data/butterfly/butterfly_records_by_100m.rds'))
+
+
+# get the list of unique species
+but_list <- but_full %>% 
+  dplyr::select(com_n, sp_n) %>% 
+  distinct() %>% 
+  arrange(sp_n) %>% 
+  mutate(taxa = 'Butterfly')
+but_list
+
+spp_list <- rbind(mth_list, but_list)
+write.csv(spp_list, file= 'Data/taxonomy/List_of_butterfly_and_moth_species.csv')

@@ -1,4 +1,4 @@
-
+rm(list= ls())
 
 ## Nudges for Rich
 
@@ -20,11 +20,20 @@ source("Scripts/modules/load_gridnumbers.R")
 
 
 ## load the decide score raster into R and crop it to size
-mgb <- raster('/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Data/species_data/decide_scores/moth_weighted_prob_pres_GB_decide_score.grd')
+mgb <- raster('/data/notebooks/rstudio-adaptsampthomas/DECIDE_adaptivesampling/Data/species_data/decide_scores/Actually_fixed_coasts_butterfly_PA_thinned_10000nAbs_decide_score_var_only_mean_time_since.grd')
 
 
 ## location and distance (same as whatever it is for user)
 location = c(-1.110557, 51.602436) # wallingford
+location = c(-2.763206, 54.042394) # lancaster
+location = c(1.674618, 52.324225) # southwold
+location = c(1.7246736494050823, 52.39079202181886) # southwold
+# location = c(1.721925851841557, 52.331772607553205) # southwold
+# location = c(1.6389400352906682, 52.3130964236375) # southwold
+location = c(1.6394552473338566, 52.31425079836214) # southwold
+location = c(1.3874346942977713, 52.01489483811975) # 
+
+
 distance = 5000
 
 # crop to size
@@ -37,15 +46,15 @@ wall_m <- filter_distance(mgb,
 ## get a list of nudge locations
 # probably best to leave these as they are for now
 nudges <- nudge_list(wall_m,
-                     n=500,
+                     n=1000,
                      # prop = 0.01,
-                     cutoff_value = 0.9, 
-                     cutoff = FALSE,
+                     cutoff_value = 0.75, 
+                     cutoff = TRUE,
                      weight = TRUE,
                      weighting_column = 'decide_score',
-                     weight_inflation = 20)
+                     weight_inflation = 50)
 head(nudges) ## produces a data frame of nudges with their decide scores
-
+dim(nudges)
 
 ## LOAD THE ACCESS LAYERS
 
@@ -172,11 +181,44 @@ thinned_nudges$nudges # sf data frame of nudges and their decide scores
 
 
 ## easy way of converting it to a data frame 
-thinned_nudges$nudges %>% as.data.frame() %>% 
+ndf <- thinned_nudges$nudges %>% as.data.frame() %>% 
 cbind(st_coordinates(thinned_nudges$nudges)) %>% 
   mutate(geometry = NULL) %>% 
-  head()
+  arrange(-decide_score)
+dim(ndf)
 
+ggplot() +
+  geom_tile(data=as.data.frame(wall_m,xy=T), aes(x=x,y=y,fill=layer), alpha=0.7) +
+  viridis::scale_fill_viridis(na.value = NA) #+
+# geom_point(data=ndf,aes(x=X, y=Y), colour = 'red', cex = 0.5)
+
+# # testing
+# bu <- raster::stack('Data/metadata/butterfly_recs_spprich_uncertSD_GB.grd')
+# bu2 <- filter_distance(bu[[2]],
+#                        location=location,
+#                        distance=distance,
+#                        method = 'buffer')
+
+ogd <- projectRaster(bu2, crs="+proj=longlat +datum=WGS84") %>% as.data.frame(xy=T)
+
+ggmap(gmap) +
+  geom_tile(data=ogd, aes(x=x,y=y,fill=spp_richness), alpha=0.7) +
+  viridis::scale_fill_viridis(na.value = NA) #+
+# geom_point(data=ndf,aes(x=X, y=Y), colour = 'red', cex = 0.5)
+
+
+
+register_google(key = "AIzaSyDzfFo6Jq1g65BauVhLL-SexOYS5OuH-kA")
+
+gmap <- get_map(location = location, zoom = 12)
+
+## original decide
+
+ogd_p <- ggmap(gmap) +
+  geom_tile(data = ogd, aes(x=x,y=y, fill = layer), alpha = 0.7) +
+  coord_quickmap() +
+  scale_fill_gradient(high = 'red', low = '#ffffcc', na.value = NA, name = 'DECIDE score') +
+  labs(x= '', y = '')
 
 ## First lot of nudge metadata - the access layer the nudge is close to
 # for all of them
