@@ -38,7 +38,7 @@ system.time(metadata_species(location = c(-2.784492, 54.024851),
                              crds_loc = 4326, # coordinates of the location vector
                              crds_df = 27700, # coordinates of the data frame
                              buffer_distance = 1000,
-                             rounding = -2, # rounding to match the transformed coordinates to the data frame. -2 is 100m resolution
+                             rounding = 4, # rounding to match the transformed coordinates to the data frame. 4 is 100m resolution
                              name_col = 'com_name'))
 
 
@@ -50,8 +50,8 @@ system.time(ms <- metadata_species(location = c(-2.784492, 54.024851),
                                    records_df = but_full, # records to find species in
                                    crds_loc = 4326, # coordinates of the location vector
                                    crds_df = 27700, # coordinates of the data frame
-                                   buffer_distance = 1000,
-                                   rounding = -2, # rounding to match the transformed coordinates to the data frame. -2 is 100m resolution
+                                   buffer_distance = 200,
+                                   rounding = 4, # rounding to match the transformed coordinates to the data frame. 4 is 100m resolution
                                    name_col = 'com_name'))
 ms
 
@@ -65,7 +65,7 @@ system.time(mm <- metadata_model_info(rast_obj = mths_meta,
                                       crds_loc = 4326, # coords of the location
                                       crds_rast = 27700,
                                       buffer_distance = 1000,
-                                      rounding = -2))
+                                      rounding = 4))
 mm
 
 # % difference between central point uncertainty and surrounding cells
@@ -79,8 +79,8 @@ system.time(mb <- metadata_model_info(rast_obj = butt_meta,
                                       location = c(-2.784410, 54.02486),
                                       crds_loc = 4326, # coords of the location
                                       crds_rast = 27700,
-                                      buffer_distance = NULL,
-                                      rounding = -2))
+                                      buffer_distance = 1000,
+                                      rounding = 4))
 mb
 
 
