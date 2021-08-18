@@ -19,8 +19,9 @@ smooth_recording <- function(weighted_layer, # layer to be weighted
                            w = sm_matrix,
                            fun = fun,
                            pad = TRUE,
-                           padValue = 0,
-                           NAonly=T)
+                           na.rm = TRUE,
+                           padValue = NA,
+                           NAonly = FALSE)
   
   # Convert recording to weighting
   weighting <- smoothed_effort

@@ -21,14 +21,23 @@ find_lcm_features <- function(rast_obj, # raster of land cover classes or data f
                               crds_loc = 4326, # coords of the location
                               crds_obj = 27700, # coords of the raster 
                               buffer_distance = 10000, # return land cover within a buffer distance from the cell of interest
-                              rounding = -2){
+                              rounding = 4){ # 4 for eastings northings (6 digits, 4th digit is the 100s scale)
   
   # first need to convert long lat to BNG
   dat_sf <- st_sf(st_sfc(st_point(location)), crs = crds_loc) # load location points, convert to spatial lat/lon
   trans_loc <- st_transform(dat_sf, crs = crds_obj) # transform to BNG
   if(!is.null(buffer_distance)) trans_loc <- rbind(st_coordinates(trans_loc), st_coordinates(st_buffer(trans_loc, buffer_distance))[,1:2]) # create a buffer around the point if desired
   
-  lcm_num <- raster::extract(x=rast_obj, y=unique(round(trans_loc, rounding)), method = 'simple') # extract the lcm values
+  # function to floor the coordinates rather than round
+  signif.floor <- function(x, n){
+    pow <- floor( log10( abs(x) ) ) + 1 - n
+    y <- floor(x / 10 ^ pow) * 10^pow
+    # handle the x = 0 case
+    y[x==0] <- 0
+    y
+  }
+  
+  lcm_num <- raster::extract(x=rast_obj, y=unique(signif.floor(trans_loc, rounding)), method = 'simple') # extract the lcm values
   
   return(name_df$lcm_value[name_df$index %in% lcm_num])
   

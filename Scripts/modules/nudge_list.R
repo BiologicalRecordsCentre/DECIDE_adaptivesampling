@@ -56,13 +56,13 @@ nudge_list <- function(decide_rast,
   if(weight == TRUE) {
     
     nudge_ind <- sample(1:dim(high_decide)[1], 
-                        size = ifelse(is.null(n), dim(high_decide)[1]*prop, n), 
+                        size = ifelse(is.null(n), dim(high_decide)[1]*prop, ifelse(n>dim(high_decide)[1], dim(high_decide)[1], n)), 
                         prob = high_decide[, weighting_column]^weight_inflation)
     
   } else if(weight == FALSE){
     
     nudge_ind <- sample(1:dim(high_decide)[1], 
-                        size = ifelse(is.null(n), dim(high_decide)[1]*prop, n))
+                        size = ifelse(is.null(n), dim(high_decide)[1]*prop, ifelse(n>dim(high_decide)[1], dim(high_decide)[1], n)))
     
   }
   

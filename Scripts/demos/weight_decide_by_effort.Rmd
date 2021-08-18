@@ -20,6 +20,7 @@ library(data.table)
 source("../../Scripts/modules/filter_distance.R")
 source("../../Scripts/modules/crop_records.R")
 source("../../Scripts/modules/count_records.R")
+source("../../Scripts/modules/smooth_recording.R")
 
 
 ```
@@ -77,7 +78,7 @@ for(i in 1:length(names)){
   
   # quantile range
   qr <- list.files(model_locs, 
-                   pattern = paste0(names[i], "_", pseudoabs, "_rangeensemblequantiles.grd"),
+                   pattern = paste0(names[i], "_", pseudoabs, "_weightedvariationensemble.grd"),
                    full.names = TRUE)
   
   qrnge <- raster::stack(qr)
@@ -95,11 +96,11 @@ for(i in 1:length(names)){
 ```{r loc_dist}
 
 # location = c(-0.385843, 51.289680) # bookham common
-# location = c(-2.860564, 56.014902) # aberlady
+location = c(-2.860564, 56.014902) # aberlady
 # location = c(-1.503560, 54.141389) # sharow
 # location = c(-2.247979, 50.632404) # lulworth cove
 # location = c(-1.461817, 54.440435) # great smeaton
-location = c(-1.110557, 51.602436) # wallingford
+# location = c(-1.110557, 51.602436) # wallingford
 
 
 distance = 5000
@@ -299,11 +300,32 @@ par(mfrow = c(1,1))
 
 ```
 
+```{r}
+
+library(ggmap)
+
+register_google(key = "AIzaSyDzfFo6Jq1g65BauVhLL-SexOYS5OuH-kA")
+
+gmap <- get_map(location = location, zoom = 12)
+
+## original decide
+ogd <- projectRaster(sr_time$weighted_score, crs="+proj=longlat +datum=WGS84") %>% as.data.frame(xy=T)
+
+ogd_p <- ggmap(gmap) +
+  geom_tile(data = ogd, aes(x=x,y=y, fill = layer), alpha = 0.7) +
+  coord_quickmap() +
+  scale_fill_viridis(na.value = NA, name = 'DECIDE score') +
+  labs(x= '', y = '')
+ogd_p
+
+```
+
+
 
 ```{r, fig.width=10, fig.height=9}
 
 
-smoothed_effort <- focal(x = effort_raster, 
+smoothed_effort <- raster::focal(x = effort_raster, 
                          w = matrix(c(0,    0.09, 0.11, 0.09,    0,
                                       0.09, 0.21, 0.33, 0.21, 0.09,
                                       0.11, 0.33,    1, 0.33, 0.11,
