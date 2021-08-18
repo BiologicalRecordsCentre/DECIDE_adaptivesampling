@@ -208,6 +208,7 @@ ggmap(gmap) +
 
 
 
+
 register_google(key = "_____")
 
 gmap <- get_map(location = location, zoom = 12)

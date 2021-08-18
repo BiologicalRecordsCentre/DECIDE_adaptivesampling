@@ -304,6 +304,7 @@ par(mfrow = c(1,1))
 
 library(ggmap)
 
+
 register_google(key = "____")
 
 gmap <- get_map(location = location, zoom = 12)
