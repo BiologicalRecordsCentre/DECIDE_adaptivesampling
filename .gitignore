@@ -6,6 +6,8 @@ schema/
 Scripts/workflows/find_accessible_areas_files/
 Scripts/workflows/data_products_outline_files/
 outputs/
+Scripts/workflows/Thomas/*
+Scripts/workflows/example_API/*
 
 ## specific files
 *.html
